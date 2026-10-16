@@ -7,6 +7,7 @@ import com.phani.pdfkit.data.Prefs
 class PdfKitApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(this)
         Graph.init(this)
     }
 }

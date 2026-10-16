@@ -63,5 +63,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.pdfbox.android)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.exifinterface)
     debugImplementation(libs.compose.ui.tooling)
 }

@@ -1,5 +1,7 @@
 package com.phani.pdfkit.ui
 
+import android.content.Context
+import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -23,18 +25,31 @@ import androidx.navigation.navArgument
 import com.phani.pdfkit.Graph
 import com.phani.pdfkit.data.DocFile
 import com.phani.pdfkit.data.Settings
+import com.phani.pdfkit.pdf.ActiveJob
+import com.phani.pdfkit.pdf.ImagesToPdf
+import com.phani.pdfkit.pdf.JobResult
+import com.phani.pdfkit.pdf.JpgDraft
+import com.phani.pdfkit.pdf.Quality
 import com.phani.pdfkit.ui.components.ToastHost
 import com.phani.pdfkit.ui.components.Toaster
+import com.phani.pdfkit.ui.jpg.JpgToPdfScreen
 import com.phani.pdfkit.ui.main.MainScreen
 import com.phani.pdfkit.ui.main.Tab
+import com.phani.pdfkit.ui.process.ProcessingScreen
+import com.phani.pdfkit.ui.process.SuccessScreen
 import com.phani.pdfkit.ui.tools.ToolCatalog
 import com.phani.pdfkit.ui.tools.ToolsScreen
-import com.phani.pdfkit.util.FileShare
+import com.phani.pdfkit.ui.viewer.ViewerScreen
 
 object Routes {
     const val MAIN = "main"
     const val TOOLS = "tools?focus={focus}"
+    const val JPG = "jpg"
+    const val PROCESSING = "processing"
+    const val SUCCESS = "success"
+    const val VIEWER = "viewer?path={path}&tool={tool}"
     fun tools(focus: Boolean = false) = "tools?focus=$focus"
+    fun viewer(path: String, tool: String? = null) = "viewer?path=${Uri.encode(path)}&tool=${tool ?: ""}"
 }
 
 private const val DUR = 380
@@ -46,8 +61,8 @@ fun PdfKitApp(settings: Settings) {
     val files by Graph.library.files.collectAsState()
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
 
-    val openFile: (DocFile) -> Unit = { d -> FileShare.openExternal(ctx, d) }
-    val onTool: (String) -> Unit = { key -> handleTool(key, nav) }
+    val openFile: (DocFile) -> Unit = { d -> nav.navigate(Routes.viewer(d.path)) }
+    val onTool: (String) -> Unit = { key -> handleTool(key, nav, ctx, files) }
 
     Box(Modifier.fillMaxSize()) {
         NavHost(
@@ -72,14 +87,77 @@ fun PdfKitApp(settings: Settings) {
                     onTool = onTool,
                 )
             }
+            composable(Routes.JPG) {
+                JpgToPdfScreen(
+                    settings = settings,
+                    onBack = { nav.popBackStack() },
+                    onCreate = {
+                        startImagesToPdf(ctx, settings)
+                        nav.navigate(Routes.PROCESSING)
+                    },
+                )
+            }
+            composable(Routes.PROCESSING) {
+                ProcessingScreen(
+                    onCancel = { nav.popBackStack() },
+                    onDone = { nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } },
+                )
+            }
+            composable(Routes.SUCCESS) {
+                SuccessScreen(
+                    onDone = { nav.popBackStack(Routes.MAIN, inclusive = false) },
+                    onOpen = openFile,
+                    onAgain = { route ->
+                        if (route == Routes.JPG) JpgDraft.clear()
+                        nav.navigate(route) { popUpTo(Routes.MAIN) }
+                    },
+                )
+            }
+            composable(
+                Routes.VIEWER,
+                arguments = listOf(
+                    navArgument("path") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("tool") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { e ->
+                ViewerScreen(
+                    path = e.arguments?.getString("path").orEmpty(),
+                    initialTool = e.arguments?.getString("tool")?.ifBlank { null },
+                    onBack = { nav.popBackStack() },
+                    onUnlock = { Toaster.show("Unlock PDF arrives in the next update") },
+                )
+            }
         }
         ToastHost()
     }
 }
 
-private fun handleTool(key: String, nav: NavHostController) {
+private fun startImagesToPdf(ctx: Context, settings: Settings) {
+    val uris = JpgDraft.images.toList()
+    val opts = JpgDraft.options
+    val quality = Quality.of(settings.compression)
+    ActiveJob.set(
+        title = "Creating PDF",
+        heading = "Creating your PDF...",
+        steps = listOf("Preparing images", "Optimizing pages", "Creating PDF file", "Finalizing..."),
+    ) { report ->
+        val out = Graph.library.newFile(Graph.library.stampedName("Images"))
+        val pages = ImagesToPdf.create(ctx, uris, out, opts, quality, report)
+        if (pages == 0) { out.delete(); null } else {
+            JpgDraft.clear()
+            JobResult(out, pages, again = Routes.JPG)
+        }
+    }
+}
+
+private fun handleTool(key: String, nav: NavHostController, ctx: Context, files: List<DocFile>) {
     when (key) {
         "more" -> nav.navigate(Routes.tools())
+        "jpg2pdf" -> nav.navigate(Routes.JPG)
+        "sign", "text" -> {
+            val pdf = files.firstOrNull { it.isPdf }
+            if (pdf != null) nav.navigate(Routes.viewer(pdf.path, key)) else Toaster.show("Import a PDF first, then open it to ${if (key == "sign") "sign" else "add text"}")
+        }
         else -> {
             val name = ToolCatalog.byKey(key)?.name ?: "This tool"
             Toaster.show("$name arrives in the next update")
