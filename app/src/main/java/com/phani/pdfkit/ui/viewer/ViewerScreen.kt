@@ -80,7 +80,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnlock: (DocFile) -> Unit) {
+fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit) {
     val c = Pk.colors
     val ctx = LocalContext.current
     val doc = remember(path) { Graph.library.find(path) }
@@ -97,7 +97,7 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
                 doc.isImage -> ZoomBox(Modifier.fillMaxSize()) {
                     AsyncImage(File(doc.path), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(12.dp))
                 }
-                else -> PdfPages(doc, initialTool, onUnlock)
+                else -> PdfPages(doc, initialTool, onUnlock, onReplace)
             }
         }
     }
@@ -112,7 +112,7 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
 }
 
 @Composable
-private fun PdfPages(doc: DocFile, initialTool: String?, onUnlock: (DocFile) -> Unit) {
+private fun PdfPages(doc: DocFile, initialTool: String?, onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit) {
     val c = Pk.colors
     val opened by produceState<PdfDoc.Open?>(null, doc.path) { value = withContext(Dispatchers.IO) { PdfDoc.open(doc.file) } }
     val pdf = (opened as? PdfDoc.Open.Ok)?.doc
@@ -125,18 +125,27 @@ private fun PdfPages(doc: DocFile, initialTool: String?, onUnlock: (DocFile) -> 
             PrimaryButton("Unlock PDF", Modifier.padding(horizontal = 40.dp)) { onUnlock(doc) }
         }
         PdfDoc.Open.Broken -> EmptyState(PkIcons.Info, "Can't open this file", "The PDF may be damaged or in an unsupported format.")
-        is PdfDoc.Open.Ok -> pdf?.let { Pages(it, initialTool) }
+        is PdfDoc.Open.Ok -> pdf?.let { Pages(it, doc.file, initialTool, onReplace) }
     }
 }
 
 @Composable
-private fun Pages(pdf: PdfDoc, initialTool: String?) {
+private fun Pages(pdf: PdfDoc, file: File, initialTool: String?, onReplace: (String) -> Unit) {
     val c = Pk.colors
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var tool by remember { mutableStateOf(initialTool) }
     var pagesSheet by remember { mutableStateOf(false) }
     val current by remember { derivedStateOf { (list.firstVisibleItemIndex + if (list.firstVisibleItemScrollOffset > 300) 1 else 0).coerceAtMost(pdf.pageCount - 1) + 1 } }
+
+    tool?.let { t ->
+        com.phani.pdfkit.ui.edit.PageEditor(
+            pdf = pdf, file = file, page = current - 1, initialTool = t,
+            onClose = { tool = null },
+            onSaved = { out -> tool = null; onReplace(out.absolutePath) },
+        )
+        return
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val px = with(LocalDensity.current) { (maxWidth.toPx() * 1.6f).toInt().coerceIn(600, 2000) }
@@ -175,12 +184,6 @@ private fun Pages(pdf: PdfDoc, initialTool: String?) {
         }
     }
 
-    LaunchedEffect(tool) {
-        when (tool) {
-            null -> {}
-            else -> Toaster.show("Editing tools arrive in the next update")
-        }
-    }
 
     if (pagesSheet) PkSheet({ pagesSheet = false }, "Pages") {
         LazyVerticalGrid(

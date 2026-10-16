@@ -30,6 +30,8 @@ import com.phani.pdfkit.pdf.ImagesToPdf
 import com.phani.pdfkit.pdf.JobResult
 import com.phani.pdfkit.pdf.JpgDraft
 import com.phani.pdfkit.pdf.Quality
+import com.phani.pdfkit.pdf.rememberScanner
+import com.phani.pdfkit.ui.ocr.OcrScreen
 import com.phani.pdfkit.ui.components.ToastHost
 import com.phani.pdfkit.ui.components.Toaster
 import com.phani.pdfkit.ui.jpg.JpgToPdfScreen
@@ -49,6 +51,7 @@ object Routes {
     const val JPG = "jpg"
     const val PROCESSING = "processing"
     const val SUCCESS = "success"
+    const val OCR = "ocr"
     const val VIEWER = "viewer?path={path}&tool={tool}"
     const val TOOL = "tool/{key}?path={path}"
     fun tool(key: String, path: String? = null) = "tool/$key" + (path?.let { "?path=${Uri.encode(it)}" } ?: "")
@@ -66,7 +69,8 @@ fun PdfKitApp(settings: Settings) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
 
     val openFile: (DocFile) -> Unit = { d -> nav.navigate(Routes.viewer(d.path)) }
-    val onTool: (String) -> Unit = { key -> handleTool(key, nav, ctx, files) }
+    val startScan = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
+    val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
 
     Box(Modifier.fillMaxSize()) {
         NavHost(
@@ -112,8 +116,10 @@ fun PdfKitApp(settings: Settings) {
                     onDone = { nav.popBackStack(Routes.MAIN, inclusive = false) },
                     onOpen = openFile,
                     onAgain = { route ->
-                        if (route == Routes.JPG) JpgDraft.clear()
-                        nav.navigate(route) { popUpTo(Routes.MAIN) }
+                        if (route == "scan") { nav.popBackStack(Routes.MAIN, false); startScan() } else {
+                            if (route == Routes.JPG) JpgDraft.clear()
+                            nav.navigate(route) { popUpTo(Routes.MAIN) }
+                        }
                     },
                 )
             }
@@ -129,8 +135,10 @@ fun PdfKitApp(settings: Settings) {
                     initialTool = e.arguments?.getString("tool")?.ifBlank { null },
                     onBack = { nav.popBackStack() },
                     onUnlock = { d -> nav.navigate(Routes.tool("unlock", d.path)) },
+                    onReplace = { p -> nav.navigate(Routes.viewer(p)) { popUpTo(Routes.VIEWER) { inclusive = true } } },
                 )
             }
+            composable(Routes.OCR) { OcrScreen(onBack = { nav.popBackStack() }) }
             composable(
                 Routes.TOOL,
                 arguments = listOf(
@@ -168,8 +176,10 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
     }
 }
 
-private fun handleTool(key: String, nav: NavHostController, ctx: Context, files: List<DocFile>) {
+private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit) {
     when (key) {
+        "scan" -> startScan()
+        "ocr" -> nav.navigate(Routes.OCR)
         "more" -> nav.navigate(Routes.tools())
         "jpg2pdf" -> nav.navigate(Routes.JPG)
         in RUNNABLE_TOOLS -> nav.navigate(Routes.tool(key))

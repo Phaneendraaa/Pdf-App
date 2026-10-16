@@ -64,5 +64,8 @@ dependencies {
     implementation(libs.pdfbox.android)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.mlkit.docscanner)
+    implementation(libs.mlkit.text)
+    implementation(libs.kotlinx.coroutines.play.services)
     debugImplementation(libs.compose.ui.tooling)
 }
