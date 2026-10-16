@@ -1,0 +1,67 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "com.phani.pdfkit"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.phani.pdfkit"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "0.1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        vectorDrawables { useSupportLibrary = true }
+    }
+
+    // Dev signing key so every CI build installs over the previous one.
+    // NOT for Play Store: create a private upload key before publishing.
+    signingConfigs {
+        create("dev") {
+            storeFile = file("keystore/dev.jks")
+            storePassword = "pdfkitdev"
+            keyAlias = "pdfkit"
+            keyPassword = "pdfkitdev"
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("dev")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("dev")
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+    buildFeatures { compose = true }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.coil.compose)
+    implementation(libs.pdfbox.android)
+    implementation(libs.kotlinx.coroutines.android)
+    debugImplementation(libs.compose.ui.tooling)
+}
