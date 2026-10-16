@@ -86,9 +86,13 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
     val doc = remember(path) { Graph.library.find(path) }
     var more by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var ai by remember { mutableStateOf(com.phani.pdfkit.ai.NanoAi.State.Unavailable) }
+    var summary by remember { mutableStateOf(false) }
+    LaunchedEffect(path) { if (doc?.isPdf == true) ai = com.phani.pdfkit.ai.NanoAi.state(ctx) }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         TopBar(doc?.name ?: File(path).name, onBack = onBack) {
+            if (ai != com.phani.pdfkit.ai.NanoAi.State.Unavailable) IconBtn(PkIcons.Sparkle, tint = c.blue, label = "Summarize", onClick = { summary = true })
             IconBtn(PkIcons.Search, onClick = { Toaster.show("Search inside PDFs arrives in a later update") })
             IconBtn(PkIcons.DotsV, size = 20.dp, onClick = { more = true })
         }
@@ -102,6 +106,8 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
             }
         }
     }
+
+    if (summary && doc != null) SummarySheet(doc, ai) { summary = false }
 
     if (more && doc != null) {
         val blue = tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)

@@ -31,7 +31,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 6** - Word to PDF / PDF to Word (basic).
 - [x] **Batch 7** - Onboarding slides, quick tour, contextual hints, sample PDF, permission explainer.
 - [x] **Batch 8** - Share target + "Open with", shortcuts, undo delete, rate prompt, haptics, empty states, dark mode.
-- [ ] **Batch 9** - Gemini Nano: Summarize, Smart rename.
+- [x] **Batch 9** - Gemini Nano: Summarize, Smart rename.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
 ## Log
@@ -42,6 +42,7 @@ Update it in the same commit as the work it describes.
 - Batch 4: tool runner screen (pick from library or phone, numbered merge order) + PdfBox tools: merge, compress with before/after note, unlock (also from viewer's locked state), protect, PDF to JPG, split (range or every page), rotate, organize pages (drag + delete), page numbers, watermark.
 - Batch 5: ML Kit document scanner (Create sheet + Scan tool, success screen), text recognition screen, viewer page editor: highlight, draw (3 inks), text (tap to add, drag to move), signature (draw pad saved for reuse, drag + size slider), undo, save as copy.
 - Batch 6: PDF to Word and Word to PDF (basic, on-device, honest hints in the UI).
+- Batch 9: Gemini Nano summary in the viewer (sparkle button only when ML Kit GenAI reports the feature; download via AICore; chunked to the 4k-token limit; copy) and smart rename suggestion after scanning (OCR first page + rule-based `SmartName`, works on every phone).
 - Batch 8: share target + Open with (VIEW pdf opens from cache/opened with "Save to Pdf Kit"; SEND pdfs import; SEND images start JPG to PDF), launcher shortcuts (Scan, JPG to PDF, Compress), resume-draft card on Home, rate prompt after 3rd success, real app lock (BiometricPrompt, relocks after 30 s; MainActivity is now FragmentActivity).
 - Batch 7: onboarding slides, 5-step quick tour, first-use hints, sample PDF, camera explainer before first scan. MainActivity waits for saved settings before drawing (no onboarding flash).
 
@@ -65,14 +66,19 @@ Update it in the same commit as the work it describes.
 - `ui/onboarding/` - `OnboardingScreen` (3-slide pager, animated art) shown while `!settings.onboarded`; `QuickTour` spotlight (anchors in `HomeAnchors`) while `!settings.tourDone`. Settings > Welcome tour resets both.
 - `util/Hints.kt` `rememberHint(id)` + `HintBanner`: one-time tips (jpg_drag, files_more, viewer_tools, success_rename, camera). `pdf/SampleDoc.kt` creates "Welcome to Pdf Kit.pdf" once (hint id "sample").
 - `util/Incoming.kt` (intents from other apps/shortcuts -> handled in `PdfKitApp`), `util/AppLock.kt` (BiometricPrompt).
+- `ai/NanoAi.kt` (ML Kit GenAI summarization `com.google.mlkit:genai-summarization:1.0.0-beta1`), `ai/SmartName.kt`, `pdf/PdfText.kt`, `ui/viewer/SummarySheet.kt`.
 - `ui/tools/ToolRunScreen.kt` - generic picker + options + `ActiveJob` for every key in `RUNNABLE_TOOLS`; `PageOrganizer.kt` drag grid for Reorder.
 - `ui/jpg`, `ui/process` (Processing + Success), `ui/viewer` (pages, page chip, pinch/double-tap zoom, pages sheet; edit tools are placeholders).
 - `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
 
-Batch 9: Gemini Nano via ML Kit GenAI (0 MB, flagship phones only; hide everywhere else).
-- Summarize: a sparkle button in the viewer top bar -> sheet with bullet summary of the current page range (map-reduce per page, show "Summarizing page x of y").
-- Smart rename: after a scan, suggest a name from the first page's OCR text ("Electricity_Bill_Oct_2026").
-- Check `FeatureStatus` first; download through AICore if DOWNLOADABLE; never show AI UI when UNAVAILABLE. Catch BUSY and retry.
-- Verify the exact ML Kit GenAI artifact names and versions before adding (they were beta in 2025-26).
+Batch 10 (release hardening):
+- Turn on R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) and add keep rules for PdfBox, ML Kit, Compose as needed; check the APK size (aim < 25 MB).
+- Fix anything reported from real-device testing (keep a "Known issues" list below).
+- Create a private upload key (not in the repo), add signing via GitHub secrets for Play builds, build an AAB.
+- Play listing: title "JPG to PDF Converter - PDFix" (or chosen name), short description, screenshots from the app.
+
+## Known issues
+
+- (none reported yet)

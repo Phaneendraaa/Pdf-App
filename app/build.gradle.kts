@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.mlkit.docscanner)
     implementation(libs.androidx.biometric)
+    implementation(libs.mlkit.genai.summarization)
     implementation(libs.mlkit.text)
     implementation(libs.kotlinx.coroutines.play.services)
     debugImplementation(libs.compose.ui.tooling)

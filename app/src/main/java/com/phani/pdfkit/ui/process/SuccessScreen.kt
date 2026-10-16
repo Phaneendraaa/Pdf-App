@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -146,6 +147,47 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
         }
     }
 
+    // Smart rename for scans: read the first page and suggest a name.
+    var suggestion by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(res.file) {
+        if (res.again != "scan") return@LaunchedEffect
+        suggestion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val bmp = com.phani.pdfkit.util.PdfThumbs.render(res.file, 0, 1400) ?: return@runCatching null
+                val text = com.phani.pdfkit.pdf.Ocr.read(bmp).also { bmp.recycle() }
+                com.phani.pdfkit.ai.SmartName.suggest(text)
+            }.getOrNull()
+        }
+    }
+    suggestion?.let { name ->
+        if (doc?.name?.startsWith(name) == true) return@let
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.align(Alignment.BottomCenter).androidxNavPad().padding(16.dp).fillMaxWidth()
+                    .shadow(16.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(c.card).padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(PkIcons.Sparkle, null, tint = c.blue, modifier = Modifier.size(20.dp))
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("Suggested name", fontSize = 12.5.sp, color = c.ink2)
+                    Text("$name.pdf", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink, maxLines = 1)
+                }
+                Text("Not now", color = c.ink2, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { suggestion = null }.padding(8.dp))
+                Text(
+                    "Use", color = c.blue, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        val d = doc ?: return@clickable
+                        suggestion = null
+                        scope.launch {
+                            val r = Graph.library.rename(d, name)
+                            if (r != null) { doc = r; ActiveJob.result = res.copy(file = r.file); Toaster.show("Renamed to ${r.name}") }
+                        }
+                    }.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+
     val settings by Graph.prefs.settings.androidxCollect()
     var askRate by remember { mutableStateOf(false) }
     LaunchedEffect(settings?.successCount) {
@@ -180,6 +222,8 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
         }
     }
 }
+
+private fun Modifier.androidxNavPad() = this.then(Modifier.navigationBarsPadding())
 
 @Composable
 private fun kotlinx.coroutines.flow.Flow<com.phani.pdfkit.data.Settings>.androidxCollect() =
