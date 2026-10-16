@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,12 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     val scope = rememberCoroutineScope()
     val last = pager.currentPage == 2
 
-    Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().navigationBarsPadding()) {
+    Column(
+        Modifier.fillMaxSize().background(c.bg)
+            // Swallow taps so they never reach the Home screen underneath.
+            .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {}
+            .statusBarsPadding().navigationBarsPadding(),
+    ) {
         Row(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
             PdfGlyph(width = 20.dp)
             Text("Pdf Kit", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(start = 8.dp).weight(1f))
