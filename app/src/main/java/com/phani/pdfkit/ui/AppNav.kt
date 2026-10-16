@@ -39,6 +39,8 @@ import com.phani.pdfkit.ui.process.ProcessingScreen
 import com.phani.pdfkit.ui.process.SuccessScreen
 import com.phani.pdfkit.ui.tools.ToolCatalog
 import com.phani.pdfkit.ui.tools.ToolsScreen
+import com.phani.pdfkit.ui.tools.ToolRunScreen
+import com.phani.pdfkit.ui.tools.RUNNABLE_TOOLS
 import com.phani.pdfkit.ui.viewer.ViewerScreen
 
 object Routes {
@@ -48,6 +50,8 @@ object Routes {
     const val PROCESSING = "processing"
     const val SUCCESS = "success"
     const val VIEWER = "viewer?path={path}&tool={tool}"
+    const val TOOL = "tool/{key}?path={path}"
+    fun tool(key: String, path: String? = null) = "tool/$key" + (path?.let { "?path=${Uri.encode(it)}" } ?: "")
     fun tools(focus: Boolean = false) = "tools?focus=$focus"
     fun viewer(path: String, tool: String? = null) = "viewer?path=${Uri.encode(path)}&tool=${tool ?: ""}"
 }
@@ -124,7 +128,21 @@ fun PdfKitApp(settings: Settings) {
                     path = e.arguments?.getString("path").orEmpty(),
                     initialTool = e.arguments?.getString("tool")?.ifBlank { null },
                     onBack = { nav.popBackStack() },
-                    onUnlock = { Toaster.show("Unlock PDF arrives in the next update") },
+                    onUnlock = { d -> nav.navigate(Routes.tool("unlock", d.path)) },
+                )
+            }
+            composable(
+                Routes.TOOL,
+                arguments = listOf(
+                    navArgument("key") { type = NavType.StringType },
+                    navArgument("path") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { e ->
+                ToolRunScreen(
+                    key = e.arguments?.getString("key").orEmpty(),
+                    presetPath = e.arguments?.getString("path")?.ifBlank { null },
+                    onBack = { nav.popBackStack() },
+                    onStart = { nav.navigate(Routes.PROCESSING) },
                 )
             }
         }
@@ -154,6 +172,7 @@ private fun handleTool(key: String, nav: NavHostController, ctx: Context, files:
     when (key) {
         "more" -> nav.navigate(Routes.tools())
         "jpg2pdf" -> nav.navigate(Routes.JPG)
+        in RUNNABLE_TOOLS -> nav.navigate(Routes.tool(key))
         "sign", "text" -> {
             val pdf = files.firstOrNull { it.isPdf }
             if (pdf != null) nav.navigate(Routes.viewer(pdf.path, key)) else Toaster.show("Import a PDF first, then open it to ${if (key == "sign") "sign" else "add text"}")

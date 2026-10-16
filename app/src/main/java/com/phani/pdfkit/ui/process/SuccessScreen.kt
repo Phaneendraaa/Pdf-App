@@ -99,7 +99,12 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
             ) {
                 Text(res.title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 30.dp))
                 HorizontalDivider(Modifier.padding(vertical = 26.dp), color = c.line)
-                PdfGlyph(width = 54.dp)
+                if (doc?.isImage == true) {
+                    coil.compose.AsyncImage(
+                        doc!!.file, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                } else PdfGlyph(width = 54.dp)
                 Row(
                     Modifier.padding(top = 16.dp).clip(RoundedCornerShape(8.dp)).clickable { renaming = true }.padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -108,7 +113,7 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     Icon(PkIcons.Edit, "Rename", tint = c.ink3, modifier = Modifier.padding(start = 6.dp).size(16.dp))
                 }
                 Text(
-                    "${Fmt.size(doc?.bytes ?: res.file.length())} · ${res.pages} page${if (res.pages == 1) "" else "s"}",
+                    res.detail ?: "${Fmt.size(doc?.bytes ?: res.file.length())} · ${res.pages} page${if (res.pages == 1) "" else "s"}",
                     fontSize = 15.sp, color = c.ink2, modifier = Modifier.padding(top = 6.dp),
                 )
                 if (res.note != null) Pill(res.note, c.green, c.greenTint, Modifier.padding(top = 12.dp))

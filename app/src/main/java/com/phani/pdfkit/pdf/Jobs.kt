@@ -15,6 +15,7 @@ data class JobResult(
     val note: String? = null,          // e.g. "12.4 MB → 3.1 MB · 75% smaller"
     val again: String? = null,         // route for "Create another"
     val againLabel: String = "Create another PDF",
+    val detail: String? = null,        // replaces "size · N pages" when set (e.g. "8 images")
 )
 
 /**

@@ -26,7 +26,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 1** - Design system (colors, type, shapes, icons), navigation scaffold, bottom nav, Home screen (greeting, search, quick tools, recent files, FAB create sheet).
 - [x] **Batch 2** - All Tools (sections + search), Files (filters, sort, list/grid, star, actions sheet), Settings (DataStore: compression, theme, app lock, about). File index stored in app storage.
 - [x] **Batch 3** - JPG to PDF: photo picker, reorderable grid, options sheet, real PDF creation, processing screen, success screen (open/share/save), viewer (PdfRenderer, page chip, pages sheet).
-- [ ] **Batch 4** - PDF tools with PdfBox: PDF to JPG, Merge, Split, Compress (before/after), Unlock, Protect, Rotate, Reorder, Page numbers, Watermark.
+- [x] **Batch 4** - PDF tools with PdfBox: PDF to JPG, Merge, Split, Compress (before/after), Unlock, Protect, Rotate, Reorder, Page numbers, Watermark.
 - [ ] **Batch 5** - Scan (ML Kit Document Scanner), Sign / Text / Highlight / Draw in viewer.
 - [ ] **Batch 6** - Word to PDF / PDF to Word (basic).
 - [ ] **Batch 7** - Onboarding slides, quick tour, contextual hints, sample PDF, permission explainer.
@@ -39,6 +39,7 @@ Update it in the same commit as the work it describes.
 - Batch 0: project created. Build runs on GitHub Actions only (Android SDK is not available in the coding environment). CI errors are emitted as check-run annotations: `gh api repos/Phaneendraaa/Pdf-App/check-runs/<id>/annotations`.
 - Batch 1+2: theme, icons, components, Home, All Tools (search), Files (filters/sort/grid/star), Settings (compression/theme/app lock/about), import, share, save to Downloads, rename, delete with undo. Tools not built yet show "arrives in the next update".
 - Batch 3: JPG to PDF (photo picker, drag reorder with haptics, first-use hint, options with sliding segmented controls, size estimate), PdfBox JPEG-compressed output, Processing (real progress, cancel), Success (rename, open/share/save, privacy line, create another), in-app viewer.
+- Batch 4: tool runner screen (pick from library or phone, numbered merge order) + PdfBox tools: merge, compress with before/after note, unlock (also from viewer's locked state), protect, PDF to JPG, split (range or every page), rotate, organize pages (drag + delete), page numbers, watermark.
 
 ## Code map
 
@@ -52,9 +53,11 @@ Update it in the same commit as the work it describes.
 - `ui/main/MainScreen.kt` - tabs, bottom nav, Create sheet (scan / images / import), file actions sheet.
 - `ui/home`, `ui/files`, `ui/settings`, `ui/tools` - screens.
 - `pdf/` - `Bitmaps` (EXIF-aware decode), `Quality` (from compression setting), `ImagesToPdf` (PdfBox JPEG pages), `PdfDoc` (PdfRenderer wrapper: locked/broken detection, bitmap cache), `Jobs.kt` (`ActiveJob` for Processing/Success, `JpgDraft`).
+- `pdf/PdfTools.kt` - merge, compress (re-encode images, never larger than input), unlock, protect (AES-128), toImages, parseRange/extract, splitEvery, rotate, reorder, pageNumbers, watermark. Throws `ToolError` with user-facing text.
+- `ui/tools/ToolRunScreen.kt` - generic picker + options + `ActiveJob` for every key in `RUNNABLE_TOOLS`; `PageOrganizer.kt` drag grid for Reorder.
 - `ui/jpg`, `ui/process` (Processing + Success), `ui/viewer` (pages, page chip, pinch/double-tap zoom, pages sheet; edit tools are placeholders).
 - `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
 
-Batch 4: PdfBox tools. Each tool = a picker screen (pick PDF(s) from library or phone) + options, then `ActiveJob.set(...)` and navigate to `Routes.PROCESSING`. Order: Merge, Compress (with before/after note), Unlock (wire `ViewerScreen.onUnlock`), Protect, PDF to JPG, Split, Rotate, Reorder, Page numbers, Watermark.
+Batch 5: Scan (ML Kit Document Scanner, `play-services-mlkit-document-scanner`) -> PDF into library; OCR (ML Kit text recognition, unbundled) -> copy text sheet; viewer edit tools: Sign (draw pad -> stamp image onto page with PdfBox), Text (tap to place text), Highlight/Draw (ink overlay saved as annotation layer). Tool keys "scan", "ocr", "sign", "text" are still placeholders in `AppNav.handleTool`.
