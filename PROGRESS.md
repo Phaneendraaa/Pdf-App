@@ -77,7 +77,7 @@ Update it in the same commit as the work it describes.
 
 Edit existing PDF text (major requirement), in 3 parts:
 - [x] Part 1: engine `pdf/TextEdit.kt` - `read(file, page)` returns text lines (`TextBlock`: position as page fractions, baseline, size, bold/italic, family) via a PDFTextStripper subclass; `applyTo(doc, page, ops)` covers each old line with its sampled background color and writes the new text on the same baseline with a matching standard-14 font (Roboto Type0 fallback for wider Unicode). `PageEdits.apply(..., textEdits)` runs it before ink/marks.
-- [ ] Part 2: `ui/edit/PageEditor.kt` tool "edit": outline every line, tap to open an edit sheet (text, size -/+, bold, color incl. sampled original, delete), live preview (background patch + new text), undo, save.
+- [x] Part 2: `ui/edit/PageEditor.kt` tool "edit" (+ `ui/edit/TextEditLayer.kt`: `sampleColors`, overlay, `EditLineSheet`): outline every line, tap to open an edit sheet (text, size -/+, bold, color incl. sampled original, delete), live preview (background patch + new text), undo, save.
 - [ ] Part 3: viewer toolbar "Edit" button, All Tools "Edit PDF Text" (+ Home quick tile decision), first-use hint.
 
 Then Batch 10 (release hardening) after real-device feedback:

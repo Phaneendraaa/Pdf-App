@@ -106,7 +106,17 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     var padOpen by remember { mutableStateOf(false) }
     var textAt by remember { mutableStateOf<Offset?>(null) }
     var saving by remember { mutableStateOf(false) }
-    val history = remember { mutableStateListOf<String>() } // "s", "t", "g" for undo order
+    val history = remember { mutableStateListOf<String>() } // "s", "t", "g", "e<id>" for undo order
+    val lineEdits = remember { androidx.compose.runtime.mutableStateMapOf<Int, LineEdit>() }
+    var editing by remember { mutableStateOf<com.phani.pdfkit.pdf.TextBlock?>(null) }
+    val layout by produceState<com.phani.pdfkit.pdf.TextEdit.Page?>(null, page) {
+        value = withContext(Dispatchers.IO) { runCatching { com.phani.pdfkit.pdf.TextEdit.read(file, page) }.getOrNull() }
+    }
+    LaunchedEffect(tool, layout) {
+        if (tool != "edit") return@LaunchedEffect
+        val l = layout ?: return@LaunchedEffect
+        Toaster.show(l.problem ?: "Tap any line of text to edit it")
+    }
 
     LaunchedEffect(tool) {
         if (tool == "sign" && sig == null) {
@@ -115,7 +125,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
         }
         if (tool == "text" && texts.isEmpty()) Toaster.show("Tap the page where you want text")
     }
-    val dirty = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null
+    val dirty = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty()
     BackHandler { onClose() }
 
     val bmp by produceState<Bitmap?>(null, page) { value = pdf.render(page, 1400) }
@@ -126,10 +136,15 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             Text("Editing page ${page + 1}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.weight(1f).padding(start = 6.dp))
             Box(
                 Modifier.size(40.dp).clip(CircleShape).clickable(enabled = history.isNotEmpty()) {
-                    when (history.removeAt(history.lastIndex)) {
-                        "s" -> if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex)
-                        "t" -> if (texts.isNotEmpty()) texts.removeAt(texts.lastIndex)
-                        "g" -> sig = null
+                    val h = history.removeAt(history.lastIndex)
+                    when {
+                        h == "s" -> if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex)
+                        h == "t" -> if (texts.isNotEmpty()) texts.removeAt(texts.lastIndex)
+                        h == "g" -> sig = null
+                        h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id ->
+                            // Drop this edit; if an earlier edit of the same line exists in history it stays removed (simple undo).
+                            lineEdits.remove(id)
+                        }
                     }
                 },
                 contentAlignment = Alignment.Center,
@@ -172,6 +187,9 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                     strokes.forEach { drawInk(it.points, it.highlight, it.color) }
                     if (tool == "draw" || tool == "highlight") drawInk(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink)
                 }
+                layout?.let { l ->
+                    TextEditLayer(l.blocks, lineEdits, l.widthPt, wPx, hPx, active = tool == "edit") { editing = it }
+                }
                 texts.forEach { m ->
                     val fontPx = m.size * wPx
                     Text(
@@ -204,9 +222,10 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
         }
         Column(Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceAround, modifier = Modifier.fillMaxWidth()) {
+                ToolChip(PkIcons.Edit, "Edit text", tool == "edit") { tool = "edit" }
+                ToolChip(PkIcons.TextT, "Add text", tool == "text") { tool = "text" }
                 ToolChip(PkIcons.Highlight, "Highlight", tool == "highlight") { tool = "highlight" }
                 ToolChip(PkIcons.Pencil, "Draw", tool == "draw") { tool = "draw" }
-                ToolChip(PkIcons.TextT, "Text", tool == "text") { tool = "text" }
                 ToolChip(PkIcons.Signature, "Sign", tool == "sign") { tool = "sign" }
             }
             when (tool) {
@@ -236,17 +255,28 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                     val s = strokes.toList()
                     val t = texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) }
                     val g = sig?.let { listOf(ImageMark(it, sigX, sigY, sigW)) } ?: emptyList()
+                    val blocksById = layout?.blocks?.associateBy { it.id }.orEmpty()
+                    val te = lineEdits.mapNotNull { (id, e) ->
+                        blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
+                    }
                     scope.launch {
                         val lib = Graph.library
                         val suffix = if (g.isNotEmpty()) "_signed" else "_edited"
                         val out = lib.newFile(displayName(file).substringBeforeLast('.').removeSuffix("_edited").removeSuffix("_signed") + suffix)
-                        val ok = withContext(Dispatchers.IO) { runCatching { PageEdits.apply(file, page, s, t, g, out) }.isSuccess }
+                        val ok = withContext(Dispatchers.IO) { runCatching { PageEdits.apply(file, page, s, t, g, out, textEdits = te) }.isSuccess }
                         saving = false
                         if (ok) { lib.refresh(); Toaster.show("Saved as ${out.name}"); onSaved(out) }
                         else { out.delete(); Toaster.show("Couldn't save the changes") }
                     }
                 }
             }
+        }
+    }
+
+    editing?.let { b ->
+        val sampled = remember(b.id, bmp) { sampleColors(bmp, b) }
+        EditLineSheet(b, lineEdits[b.id], sampled, { editing = null }) { e ->
+            lineEdits[b.id] = e; history += "e${b.id}"; editing = null
         }
     }
 
