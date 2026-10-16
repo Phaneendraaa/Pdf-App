@@ -23,8 +23,8 @@ Update it in the same commit as the work it describes.
 ## Batches
 
 - [x] **Batch 0** - Gradle skeleton, dev signing key, CI build, APK published to Releases, this file.
-- [ ] **Batch 1** - Design system (colors, type, shapes, icons), navigation scaffold, bottom nav, Home screen (greeting, search, quick tools, recent files, FAB create sheet).
-- [ ] **Batch 2** - All Tools (sections + search), Files (filters, sort, list/grid, star, actions sheet), Settings (DataStore: compression, theme, app lock, about). File index stored in app storage.
+- [x] **Batch 1** - Design system (colors, type, shapes, icons), navigation scaffold, bottom nav, Home screen (greeting, search, quick tools, recent files, FAB create sheet).
+- [x] **Batch 2** - All Tools (sections + search), Files (filters, sort, list/grid, star, actions sheet), Settings (DataStore: compression, theme, app lock, about). File index stored in app storage.
 - [ ] **Batch 3** - JPG to PDF: photo picker, reorderable grid, options sheet, real PDF creation, processing screen, success screen (open/share/save), viewer (PdfRenderer, page chip, pages sheet).
 - [ ] **Batch 4** - PDF tools with PdfBox: PDF to JPG, Merge, Split, Compress (before/after), Unlock, Protect, Rotate, Reorder, Page numbers, Watermark.
 - [ ] **Batch 5** - Scan (ML Kit Document Scanner), Sign / Text / Highlight / Draw in viewer.
@@ -36,8 +36,22 @@ Update it in the same commit as the work it describes.
 
 ## Log
 
-- Batch 0: project created. Build runs on GitHub Actions only (Android SDK is not available in the coding environment).
+- Batch 0: project created. Build runs on GitHub Actions only (Android SDK is not available in the coding environment). CI errors are emitted as check-run annotations: `gh api repos/Phaneendraaa/Pdf-App/check-runs/<id>/annotations`.
+- Batch 1+2: theme, icons, components, Home, All Tools (search), Files (filters/sort/grid/star), Settings (compression/theme/app lock/about), import, share, save to Downloads, rename, delete with undo. Tools not built yet show "arrives in the next update".
+
+## Code map
+
+- `PdfKitApp.kt` - Application + `Graph` (Library, Prefs singletons).
+- `data/Library.kt` - files live in `getExternalFilesDir()/Pdf Kit`; soft delete + undo, rename, unique names. `Fmt` formatting.
+- `data/Prefs.kt` - DataStore: theme, compression, app lock, onboarding/tour flags, starred, hints, success count.
+- `ui/theme/Theme.kt` - `PkColors` light/dark, `Pk.colors`, `tint()`, typography, `PdfKitTheme`.
+- `ui/icons/PkIcons.kt` - outline icons built from the prototype's SVG paths.
+- `ui/components/` - `pressable`, `PdfGlyph`, `FileRow`, `TopBar`, `PrimaryButton`, `EmptyState`, `Toaster`/`ToastHost` (with Undo), `PkSheet`, `SheetOption`, `ChoiceOption`, `RenameDialog`.
+- `ui/AppNav.kt` - NavHost, routes, `handleTool()` (tool key -> screen).
+- `ui/main/MainScreen.kt` - tabs, bottom nav, Create sheet (scan / images / import), file actions sheet.
+- `ui/home`, `ui/files`, `ui/settings`, `ui/tools` - screens.
+- `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
 
-Batch 1: design system + Home screen.
+Batch 3: JPG to PDF flow (photo picker, reorder grid, options, PdfDocument), processing + success screens, in-app viewer (replace `FileShare.openExternal` in `AppNav.openFile`).

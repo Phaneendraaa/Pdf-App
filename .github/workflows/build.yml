@@ -26,10 +26,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build release APK
+        shell: bash
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          set -o pipefail
+          ./gradlew --no-daemon assembleRelease 2>&1 | tee build.log
           cp app/build/outputs/apk/release/app-release.apk PdfKit.apk
+
+      - name: Report build errors
+        if: failure()
+        shell: bash
+        run: |
+          # Surface compiler errors as annotations (readable without log access).
+          grep -E "^e: |error:|FAILURE|What went wrong" -A2 build.log | head -60 | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::${line//%/%25}"
+          done
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
