@@ -75,11 +75,14 @@ Update it in the same commit as the work it describes.
 
 ## Next step
 
-Batch 10 (release hardening) - wait for real-device test feedback first:
-- APK is 18.4 MB at build 9 without R8, already under target. Turn on R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) and add keep rules for PdfBox, ML Kit, Compose as needed; check the APK size (aim < 25 MB).
-- Fix anything reported from real-device testing (keep a "Known issues" list below).
-- Create a private upload key (not in the repo), add signing via GitHub secrets for Play builds, build an AAB.
-- Play listing: title "JPG to PDF Converter - PDFix" (or chosen name), short description, screenshots from the app.
+Edit existing PDF text (major requirement), in 3 parts:
+- [x] Part 1: engine `pdf/TextEdit.kt` - `read(file, page)` returns text lines (`TextBlock`: position as page fractions, baseline, size, bold/italic, family) via a PDFTextStripper subclass; `applyTo(doc, page, ops)` covers each old line with its sampled background color and writes the new text on the same baseline with a matching standard-14 font (Roboto Type0 fallback for wider Unicode). `PageEdits.apply(..., textEdits)` runs it before ink/marks.
+- [ ] Part 2: `ui/edit/PageEditor.kt` tool "edit": outline every line, tap to open an edit sheet (text, size -/+, bold, color incl. sampled original, delete), live preview (background patch + new text), undo, save.
+- [ ] Part 3: viewer toolbar "Edit" button, All Tools "Edit PDF Text" (+ Home quick tile decision), first-use hint.
+
+Then Batch 10 (release hardening) after real-device feedback:
+- APK is 18.4 MB at build 9 without R8, already under target. Turn on R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) with keep rules for PdfBox/ML Kit; check size.
+- Private upload key via GitHub secrets, AAB, Play listing.
 
 ## Known issues
 

@@ -18,8 +18,13 @@ object PageEdits {
     private fun b(c: Int) = (c and 0xFF) / 255f
 
     /** Writes a copy of [src] with the edits flattened onto page [pageIndex]. Returns the page count. */
-    fun apply(src: File, pageIndex: Int, strokes: List<InkStroke>, texts: List<TextMark>, images: List<ImageMark>, out: File): Int =
+    fun apply(
+        src: File, pageIndex: Int, strokes: List<InkStroke>, texts: List<TextMark>, images: List<ImageMark>, out: File,
+        textEdits: List<TextEditOp> = emptyList(),
+    ): Int =
         PdfTools.load(src).use { doc ->
+            // Existing-text edits go first so new ink and marks sit on top of them.
+            TextEdit.applyTo(doc, pageIndex, textEdits)
             val page = doc.getPage(pageIndex)
             val box = page.mediaBox
             fun px(x: Float) = box.lowerLeftX + x * box.width
