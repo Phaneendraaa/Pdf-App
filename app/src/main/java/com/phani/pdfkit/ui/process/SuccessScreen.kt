@@ -104,7 +104,7 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                         doc!!.file, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
                     )
-                } else PdfGlyph(width = 54.dp)
+                } else if (doc?.isDoc == true) com.phani.pdfkit.ui.components.WordGlyph(width = 54.dp) else PdfGlyph(width = 54.dp)
                 Row(
                     Modifier.padding(top = 16.dp).clip(RoundedCornerShape(8.dp)).clickable { renaming = true }.padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,

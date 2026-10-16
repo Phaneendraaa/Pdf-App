@@ -28,7 +28,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 3** - JPG to PDF: photo picker, reorderable grid, options sheet, real PDF creation, processing screen, success screen (open/share/save), viewer (PdfRenderer, page chip, pages sheet).
 - [x] **Batch 4** - PDF tools with PdfBox: PDF to JPG, Merge, Split, Compress (before/after), Unlock, Protect, Rotate, Reorder, Page numbers, Watermark.
 - [x] **Batch 5** - Scan (ML Kit Document Scanner), Sign / Text / Highlight / Draw in viewer.
-- [ ] **Batch 6** - Word to PDF / PDF to Word (basic).
+- [x] **Batch 6** - Word to PDF / PDF to Word (basic).
 - [ ] **Batch 7** - Onboarding slides, quick tour, contextual hints, sample PDF, permission explainer.
 - [ ] **Batch 8** - Share target + "Open with", shortcuts, undo delete, rate prompt, haptics, empty states, dark mode.
 - [ ] **Batch 9** - Gemini Nano: Summarize, Smart rename.
@@ -41,6 +41,7 @@ Update it in the same commit as the work it describes.
 - Batch 3: JPG to PDF (photo picker, drag reorder with haptics, first-use hint, options with sliding segmented controls, size estimate), PdfBox JPEG-compressed output, Processing (real progress, cancel), Success (rename, open/share/save, privacy line, create another), in-app viewer.
 - Batch 4: tool runner screen (pick from library or phone, numbered merge order) + PdfBox tools: merge, compress with before/after note, unlock (also from viewer's locked state), protect, PDF to JPG, split (range or every page), rotate, organize pages (drag + delete), page numbers, watermark.
 - Batch 5: ML Kit document scanner (Create sheet + Scan tool, success screen), text recognition screen, viewer page editor: highlight, draw (3 inks), text (tap to add, drag to move), signature (draw pad saved for reuse, drag + size slider), undo, save as copy.
+- Batch 6: PDF to Word and Word to PDF (basic, on-device, honest hints in the UI).
 
 ## Code map
 
@@ -58,13 +59,11 @@ Update it in the same commit as the work it describes.
 - `pdf/Scanner.kt` - `rememberScanner` (ML Kit document scanner, PDF result copied to library), `Ocr` (ML Kit text recognition).
 - `pdf/PageEdits.kt` + `ui/edit/` - single-page editor (ink, highlight, draggable text, signature with saved pad), flattened with PdfBox into `<name>_edited/_signed.pdf`.
 - `ui/ocr/OcrScreen.kt` - text from photo or PDF (25 pages), copy/share.
+- `pdf/WordTools.kt` - PDF to .docx (PDFTextStripper + hand-written OOXML zip, no Apache POI) and .docx to PDF (XmlPullParser + PdfBox layout, Roboto from /system/fonts with Helvetica fallback). Library now also lists .docx (`DocFile.isDoc`, `WordGlyph`), opened in an external app.
 - `ui/tools/ToolRunScreen.kt` - generic picker + options + `ActiveJob` for every key in `RUNNABLE_TOOLS`; `PageOrganizer.kt` drag grid for Reorder.
 - `ui/jpg`, `ui/process` (Processing + Success), `ui/viewer` (pages, page chip, pinch/double-tap zoom, pages sheet; edit tools are placeholders).
 - `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
 
-Batch 6: Word to PDF / PDF to Word, fully on-device and honest about quality.
-- PDF to Word: extract text per page with PdfBox `PDFTextStripper`, write a minimal .docx (hand-written OOXML zip: [Content_Types].xml, _rels/.rels, word/document.xml) with one paragraph per line and a page break per page. No Apache POI (keeps APK small).
-- Word to PDF: read word/document.xml from the .docx zip (paragraphs, bold runs, headings by style name), lay out text on A4 with PdfBox (Helvetica, wrapping, page breaks). Tell users formatting is basic.
-- Add both keys to `RUNNABLE_TOOLS`; Word to PDF needs a .docx picker instead of the PDF list.
+Batch 7: wire `ui/onboarding/Onboarding.kt` (already written: 3-slide pager with animated art) into `PdfKitApp` when `settings.onboarded` is false; then a 5-step spotlight quick tour over Home using `HomeAnchors.bounds` (quick, search, fab, recent, Files nav item); Settings > Welcome tour resets both flags. Contextual hints (viewer tools, success rename, files ⋮). Sample "Welcome to Pdf Kit.pdf" generated on first run. One-time camera explainer before first scan.

@@ -22,6 +22,7 @@ data class DocFile(
     val ext: String get() = name.substringAfterLast('.', "").lowercase()
     val isPdf: Boolean get() = ext == "pdf"
     val isImage: Boolean get() = ext in setOf("jpg", "jpeg", "png", "webp")
+    val isDoc: Boolean get() = ext == "docx"
 }
 
 /**
@@ -40,7 +41,7 @@ class Library(context: Context) {
         (dir.listFiles() ?: emptyArray())
             .filter { it.isFile && !it.name.startsWith(".") }
             .map { DocFile(it.absolutePath, it.name, it.length(), it.lastModified()) }
-            .filter { it.isPdf || it.isImage }
+            .filter { it.isPdf || it.isImage || it.isDoc }
             .sortedByDescending { it.modified }
 
     fun refreshBlocking() { _files.value = scan() }

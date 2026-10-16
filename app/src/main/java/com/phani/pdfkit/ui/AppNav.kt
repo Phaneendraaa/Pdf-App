@@ -68,7 +68,9 @@ fun PdfKitApp(settings: Settings) {
     val files by Graph.library.files.collectAsState()
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
 
-    val openFile: (DocFile) -> Unit = { d -> nav.navigate(Routes.viewer(d.path)) }
+    val openFile: (DocFile) -> Unit = { d ->
+        if (d.isDoc) com.phani.pdfkit.util.FileShare.openExternal(ctx, d) else nav.navigate(Routes.viewer(d.path))
+    }
     val startScan = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
     val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
 

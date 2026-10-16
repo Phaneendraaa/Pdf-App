@@ -86,8 +86,15 @@ fun Modifier.pressable(
 
 /** The red PDF document glyph used across the app. */
 @Composable
-fun PdfGlyph(modifier: Modifier = Modifier, width: Dp = 38.dp) {
-    val red = Pk.colors.red
+fun PdfGlyph(modifier: Modifier = Modifier, width: Dp = 38.dp) = DocGlyph(modifier, width, Pk.colors.red, Color(0xFFFF9A9A), "PDF")
+
+/** Blue Word document glyph. */
+@Composable
+fun WordGlyph(modifier: Modifier = Modifier, width: Dp = 38.dp) = DocGlyph(modifier, width, Color(0xFF2B5CD6), Color(0xFF9DB8F5), "DOC")
+
+@Composable
+private fun DocGlyph(modifier: Modifier, width: Dp, body: Color, foldColor: Color, label: String) {
+    val red = body
     Box(modifier.size(width, width * 1.2f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width; val h = size.height; val r = w * 0.18f; val fold = w * 0.35f
@@ -98,10 +105,10 @@ fun PdfGlyph(modifier: Modifier = Modifier, width: Dp = 38.dp) {
             }
             drawPath(body, red)
             val f = Path().apply { moveTo(w - fold, 0f); lineTo(w - fold, fold * 0.75f); quadraticBezierTo(w - fold, fold, w - fold * 0.75f, fold); lineTo(w, fold); close() }
-            drawPath(f, Color(0xFFFF9A9A))
+            drawPath(f, foldColor)
         }
         Text(
-            "PDF", color = Color.White, fontWeight = FontWeight.Bold,
+            label, color = Color.White, fontWeight = FontWeight.Bold,
             fontSize = (width.value * 0.27f).sp, modifier = Modifier.padding(top = width * 0.28f),
         )
     }
@@ -111,6 +118,7 @@ fun PdfGlyph(modifier: Modifier = Modifier, width: Dp = 38.dp) {
 @Composable
 fun FileThumb(doc: DocFile, size: Dp = 40.dp) {
     if (doc.isPdf) PdfGlyph(width = size * 0.95f)
+    else if (doc.isDoc) WordGlyph(width = size * 0.95f)
     else AsyncImage(
         model = File(doc.path), contentDescription = null, contentScale = ContentScale.Crop,
         modifier = Modifier.size(size + 2.dp).clip(RoundedCornerShape(9.dp)).background(Pk.colors.surf),

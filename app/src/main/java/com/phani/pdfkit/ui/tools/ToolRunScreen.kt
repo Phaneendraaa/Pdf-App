@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit) {
@@ -81,6 +81,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     val scope = rememberCoroutineScope()
     val tool = ToolCatalog.byKey(key) ?: return
     val multi = key == "merge"
+    val wordIn = key == "word2pdf"
     val files by Graph.library.files.collectAsState()
 
     val fromPhone = remember { mutableStateListOf<File>() }
@@ -88,13 +89,14 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     LaunchedEffect(presetPath) {
         if (!presetPath.isNullOrBlank()) File(presetPath).takeIf { it.exists() }?.let { if (it !in selected) selected += it }
     }
-    val candidates = (fromPhone + files.filter { it.isPdf }.map { it.file }).distinctBy { it.absolutePath }
+    val candidates = (fromPhone + files.filter { if (wordIn) it.isDoc else it.isPdf }.map { it.file }).distinctBy { it.absolutePath }
         .let { list -> presetPath?.let { p -> list.sortedByDescending { it.absolutePath == p } } ?: list }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         scope.launch {
-            val got = uris.mapNotNull { Importer.toCache(ctx, it) }.filter { it.name.endsWith(".pdf", true) }
-            if (got.isEmpty() && uris.isNotEmpty()) Toaster.show("Please pick a PDF file")
+            val ext = if (wordIn) ".docx" else ".pdf"
+            val got = uris.mapNotNull { Importer.toCache(ctx, it) }.filter { it.name.endsWith(ext, true) }
+            if (got.isEmpty() && uris.isNotEmpty()) Toaster.show(if (wordIn) "Please pick a .docx Word file" else "Please pick a PDF file")
             fromPhone.addAll(0, got)
             if (multi) selected.addAll(got) else got.firstOrNull()?.let { selected.clear(); selected += it }
         }
@@ -116,7 +118,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     val first = selected.firstOrNull()
     var pages by remember { mutableStateOf(0) }
     LaunchedEffect(first) {
-        pages = first?.let { f -> withContext(Dispatchers.IO) { com.phani.pdfkit.util.PdfThumbs.pageCount(f) } } ?: 0
+        pages = if (wordIn) 0 else first?.let { f -> withContext(Dispatchers.IO) { com.phani.pdfkit.util.PdfThumbs.pageCount(f) } } ?: 0
         pageOrder.clear(); pageOrder.addAll(0 until pages)
     }
 
@@ -131,6 +133,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     }
     val action = when (key) {
         "merge" -> if (selected.size >= 2) "Merge ${selected.size} PDFs" else "Pick at least 2 PDFs"
+        "pdf2word" -> "Convert to Word"
+        "word2pdf" -> "Convert to PDF"
         "compress" -> "Compress PDF"
         "unlock" -> "Unlock PDF"
         "protect" -> "Protect PDF"
@@ -147,13 +151,15 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         TopBar(tool.name, subtitle = tool.desc, back = PkIcons.ArrowLeft, onBack = onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             Text(
-                if (multi) "Choose PDFs, in the order to merge" else "Choose a PDF",
+                if (multi) "Choose PDFs, in the order to merge" else if (wordIn) "Choose a Word file (.docx)" else "Choose a PDF",
                 fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(top = 6.dp, bottom = 10.dp),
             )
             val t = tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, c.line, RoundedCornerShape(14.dp))
-                    .clickable { picker.launch(arrayOf("application/pdf")) }.padding(12.dp),
+                    .clickable {
+                        picker.launch(if (wordIn) arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword") else arrayOf("application/pdf"))
+                    }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TintTile(PkIcons.FileUp, t.fg, t.bg, size = 40.dp, iconSize = 21.dp, radius = 11.dp)
@@ -165,7 +171,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                 Icon(PkIcons.ChevronRight, null, tint = c.ink2, modifier = Modifier.size(18.dp))
             }
             if (candidates.isEmpty()) {
-                Text("No PDFs in Pdf Kit yet. Browse your phone to pick one.", fontSize = 13.5.sp, color = c.ink2, modifier = Modifier.padding(vertical = 14.dp))
+                Text(if (wordIn) "No Word files in Pdf Kit yet. Browse your phone to pick one." else "No PDFs in Pdf Kit yet. Browse your phone to pick one.", fontSize = 13.5.sp, color = c.ink2, modifier = Modifier.padding(vertical = 14.dp))
             } else {
                 Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     candidates.take(30).forEach { f ->
@@ -181,7 +187,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                                 }.padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            PdfGlyph(width = 30.dp)
+                            if (wordIn) com.phani.pdfkit.ui.components.WordGlyph(width = 30.dp) else PdfGlyph(width = 30.dp)
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(displayName(f), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -265,6 +271,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             if (first != null) PageOrganizer(first, pageOrder)
                         }
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
+                        "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over; tables, columns and images don't. Scanned PDFs need Text Recognition first.")
+                        "word2pdf" -> Hint("Converts text, headings, bold and page breaks. Tables and images aren't included yet.")
                     }
                 }
             }
@@ -277,6 +285,16 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library
                 when (key) {
+                    "pdf2word" -> ActiveJob.set("PDF to Word", "Converting to Word...", listOf("Reading text", "Building paragraphs", "Saving .docx")) { r ->
+                        val out = lib.newFile(base(), "docx")
+                        val n = try { com.phani.pdfkit.pdf.WordTools.pdfToDocx(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
+                        JobResult(out, n, "Word file created!", detail = "${Fmt.size(out.length())} · .docx · opens in Word or Google Docs", again = again, againLabel = "Convert another PDF")
+                    }
+                    "word2pdf" -> ActiveJob.set("Word to PDF", "Converting to PDF...", listOf("Reading document", "Laying out pages", "Saving PDF")) { r ->
+                        val out = lib.newFile(base())
+                        val n = try { com.phani.pdfkit.pdf.WordTools.docxToPdf(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
+                        JobResult(out, n, "PDF created!", again = again, againLabel = "Convert another file")
+                    }
                     "merge" -> ActiveJob.set("Merging PDFs", "Merging your PDFs...", listOf("Reading files", "Combining pages", "Saving PDF")) { r ->
                         val out = lib.newFile(lib.stampedName("Merged"))
                         val n = PdfTools.merge(src, out, r)
