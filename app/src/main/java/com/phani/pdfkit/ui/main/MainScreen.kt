@@ -69,6 +69,9 @@ fun MainScreen(
     onTour: () -> Unit,
     showTour: Boolean = false,
     onTourDone: () -> Unit = {},
+    draftCount: Int = 0,
+    onResumeDraft: () -> Unit = {},
+    onDiscardDraft: () -> Unit = {},
 ) {
     val c = Pk.colors
     val ctx = LocalContext.current
@@ -98,6 +101,7 @@ fun MainScreen(
                             onSearch = onSearch, onTool = onTool, onOpen = onOpen, onMore = { moreFor = it },
                             onSeeAll = { onTab(Tab.Files) }, onCreate = { createSheet = true },
                             onBell = { Toaster.show("You're all caught up") },
+                            draftCount = draftCount, onResumeDraft = onResumeDraft, onDiscardDraft = onDiscardDraft,
                         )
                         Tab.Files -> FilesScreen(
                             files = files, starred = settings.starred, onOpen = onOpen, onMore = { moreFor = it },

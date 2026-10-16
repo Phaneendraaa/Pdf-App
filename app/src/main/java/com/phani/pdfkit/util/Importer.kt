@@ -30,6 +30,17 @@ object Importer {
         out
     }
 
+    /** Copies a file opened from another app into cache/opened, keeping its real name. */
+    suspend fun toOpened(context: Context, uri: Uri): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val name = (displayName(context, uri) ?: "Document.pdf").replace("/", "_")
+            val dir = File(context.cacheDir, "opened").apply { mkdirs() }
+            val f = File(dir, name)
+            context.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { i.copyTo(it) } }
+            f
+        }.getOrNull()
+    }
+
     /** Copies a picked file into the cache (for tools that read but do not keep the source). */
     suspend fun toCache(context: Context, uri: Uri): File? = withContext(Dispatchers.IO) {
         runCatching {

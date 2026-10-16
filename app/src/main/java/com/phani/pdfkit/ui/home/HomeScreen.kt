@@ -71,6 +71,9 @@ fun HomeScreen(
     onSeeAll: () -> Unit,
     onCreate: () -> Unit,
     onBell: () -> Unit,
+    draftCount: Int = 0,
+    onResumeDraft: () -> Unit = {},
+    onDiscardDraft: () -> Unit = {},
 ) {
     val c = Pk.colors
     Box(Modifier.fillMaxSize()) {
@@ -94,6 +97,23 @@ fun HomeScreen(
                 Icon(PkIcons.Search, null, tint = c.ink3, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
                 Text("Search files, tools...", color = c.ink3, fontSize = 15.5.sp)
+            }
+            androidx.compose.animation.AnimatedVisibility(draftCount > 0) {
+                Row(
+                    Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).fillMaxWidth()
+                        .pressable(scaleTo = 0.98f, onClick = onResumeDraft)
+                        .clip(RoundedCornerShape(16.dp)).background(c.blueTint).padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(c.card), contentAlignment = Alignment.Center) {
+                        Icon(PkIcons.Image, null, tint = c.blue, modifier = Modifier.size(22.dp))
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("Continue your PDF", fontSize = 15.5.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
+                        Text("$draftCount photo${if (draftCount == 1) "" else "s"} selected", fontSize = 13.sp, color = c.ink2)
+                    }
+                    IconBtn(PkIcons.Close, tint = c.ink2, size = 16.dp, label = "Discard", onClick = onDiscardDraft)
+                }
             }
             SectionTitle("Quick tools", Modifier.padding(start = 22.dp, top = 26.dp, bottom = 14.dp))
             val keys = ToolCatalog.quick + "more"

@@ -90,8 +90,12 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
         }
         Group("Security") {
             SRow(PkIcons.Lock, "App lock", sub = "Fingerprint or PIN to open", trailing = { Switch(settings.appLock) }) {
-                scope.launch { Graph.prefs.setAppLock(!settings.appLock) }
-                Toaster.show(if (!settings.appLock) "App lock on" else "App lock off")
+                if (!settings.appLock && !com.phani.pdfkit.util.AppLock.available(ctx)) {
+                    Toaster.show("Set up a screen lock or fingerprint on your phone first")
+                } else {
+                    scope.launch { Graph.prefs.setAppLock(!settings.appLock) }
+                    Toaster.show(if (!settings.appLock) "App lock on. It asks after 30 seconds away." else "App lock off")
+                }
             }
         }
         Group("About") {

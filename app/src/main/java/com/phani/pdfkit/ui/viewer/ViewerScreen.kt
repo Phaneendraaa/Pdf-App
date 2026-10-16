@@ -85,6 +85,7 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
     val ctx = LocalContext.current
     val doc = remember(path) { Graph.library.find(path) }
     var more by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         TopBar(doc?.name ?: File(path).name, onBack = onBack) {
@@ -107,6 +108,18 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
         PkSheet({ more = false }, doc.name) {
             SheetOption(PkIcons.Share, blue.fg, blue.bg, "Share") { more = false; FileShare.share(ctx, listOf(doc)) }
             SheetOption(PkIcons.ArrowRight, blue.fg, blue.bg, "Open with another app") { more = false; FileShare.openExternal(ctx, doc) }
+            if (!doc.path.startsWith(Graph.library.dir.absolutePath)) {
+                val green = tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
+                SheetOption(PkIcons.Download, green.fg, green.bg, "Save to Pdf Kit", "Keep a copy in your Files") {
+                    more = false
+                    scope.launch {
+                        val saved = withContext(Dispatchers.IO) {
+                            runCatching { doc.file.copyTo(Graph.library.newFile(doc.name.substringBeforeLast('.'))).also { Graph.library.refreshBlocking() } }.getOrNull()
+                        }
+                        Toaster.show(if (saved != null) "Saved to Files" else "Couldn't save the file")
+                    }
+                }
+            }
         }
     }
 }

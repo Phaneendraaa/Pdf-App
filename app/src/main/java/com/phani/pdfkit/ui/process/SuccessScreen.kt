@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -145,6 +146,29 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
         }
     }
 
+    val settings by Graph.prefs.settings.androidxCollect()
+    var askRate by remember { mutableStateOf(false) }
+    LaunchedEffect(settings?.successCount) {
+        val st = settings ?: return@LaunchedEffect
+        if (st.successCount >= 3 && !st.ratePrompted) { delay(1200); askRate = true }
+    }
+    if (askRate) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askRate = false; scope.launch { Graph.prefs.setRatePrompted() } },
+            containerColor = c.card, shape = RoundedCornerShape(20.dp),
+            title = { Text("Enjoying Pdf Kit?", color = c.ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold) },
+            text = { Text("A quick rating helps other people find a private, offline PDF app.", color = c.ink2, fontSize = 15.sp, lineHeight = 21.sp) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    askRate = false; scope.launch { Graph.prefs.setRatePrompted() }; com.phani.pdfkit.util.Store.openListing(ctx)
+                }) { Text("Rate now", color = c.blue, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { askRate = false; scope.launch { Graph.prefs.setRatePrompted() } }) { Text("Not now", color = c.ink2) }
+            },
+        )
+    }
+
     if (renaming) doc?.let { d ->
         RenameDialog(d.name, { renaming = false }) { n ->
             renaming = false
@@ -156,6 +180,10 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
         }
     }
 }
+
+@Composable
+private fun kotlinx.coroutines.flow.Flow<com.phani.pdfkit.data.Settings>.androidxCollect() =
+    collectAsState(initial = null as com.phani.pdfkit.data.Settings?)
 
 @Composable
 private fun Action(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {

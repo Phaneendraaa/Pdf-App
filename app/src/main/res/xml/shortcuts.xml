@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_scan"
+        android:shortcutShortLabel="@string/sc_scan">
+        <intent
+            android:action="com.phani.pdfkit.SHORTCUT"
+            android:targetPackage="com.phani.pdfkit"
+            android:targetClass="com.phani.pdfkit.MainActivity">
+            <extra android:name="tool" android:value="scan" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="jpg2pdf"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_jpg"
+        android:shortcutShortLabel="@string/sc_jpg">
+        <intent
+            android:action="com.phani.pdfkit.SHORTCUT"
+            android:targetPackage="com.phani.pdfkit"
+            android:targetClass="com.phani.pdfkit.MainActivity">
+            <extra android:name="tool" android:value="jpg2pdf" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="compress"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_compress"
+        android:shortcutShortLabel="@string/sc_compress">
+        <intent
+            android:action="com.phani.pdfkit.SHORTCUT"
+            android:targetPackage="com.phani.pdfkit"
+            android:targetClass="com.phani.pdfkit.MainActivity">
+            <extra android:name="tool" android:value="compress" />
+        </intent>
+    </shortcut>
+</shortcuts>

@@ -30,7 +30,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 5** - Scan (ML Kit Document Scanner), Sign / Text / Highlight / Draw in viewer.
 - [x] **Batch 6** - Word to PDF / PDF to Word (basic).
 - [x] **Batch 7** - Onboarding slides, quick tour, contextual hints, sample PDF, permission explainer.
-- [ ] **Batch 8** - Share target + "Open with", shortcuts, undo delete, rate prompt, haptics, empty states, dark mode.
+- [x] **Batch 8** - Share target + "Open with", shortcuts, undo delete, rate prompt, haptics, empty states, dark mode.
 - [ ] **Batch 9** - Gemini Nano: Summarize, Smart rename.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
@@ -42,6 +42,7 @@ Update it in the same commit as the work it describes.
 - Batch 4: tool runner screen (pick from library or phone, numbered merge order) + PdfBox tools: merge, compress with before/after note, unlock (also from viewer's locked state), protect, PDF to JPG, split (range or every page), rotate, organize pages (drag + delete), page numbers, watermark.
 - Batch 5: ML Kit document scanner (Create sheet + Scan tool, success screen), text recognition screen, viewer page editor: highlight, draw (3 inks), text (tap to add, drag to move), signature (draw pad saved for reuse, drag + size slider), undo, save as copy.
 - Batch 6: PDF to Word and Word to PDF (basic, on-device, honest hints in the UI).
+- Batch 8: share target + Open with (VIEW pdf opens from cache/opened with "Save to Pdf Kit"; SEND pdfs import; SEND images start JPG to PDF), launcher shortcuts (Scan, JPG to PDF, Compress), resume-draft card on Home, rate prompt after 3rd success, real app lock (BiometricPrompt, relocks after 30 s; MainActivity is now FragmentActivity).
 - Batch 7: onboarding slides, 5-step quick tour, first-use hints, sample PDF, camera explainer before first scan. MainActivity waits for saved settings before drawing (no onboarding flash).
 
 ## Code map
@@ -63,15 +64,15 @@ Update it in the same commit as the work it describes.
 - `pdf/WordTools.kt` - PDF to .docx (PDFTextStripper + hand-written OOXML zip, no Apache POI) and .docx to PDF (XmlPullParser + PdfBox layout, Roboto from /system/fonts with Helvetica fallback). Library now also lists .docx (`DocFile.isDoc`, `WordGlyph`), opened in an external app.
 - `ui/onboarding/` - `OnboardingScreen` (3-slide pager, animated art) shown while `!settings.onboarded`; `QuickTour` spotlight (anchors in `HomeAnchors`) while `!settings.tourDone`. Settings > Welcome tour resets both.
 - `util/Hints.kt` `rememberHint(id)` + `HintBanner`: one-time tips (jpg_drag, files_more, viewer_tools, success_rename, camera). `pdf/SampleDoc.kt` creates "Welcome to Pdf Kit.pdf" once (hint id "sample").
+- `util/Incoming.kt` (intents from other apps/shortcuts -> handled in `PdfKitApp`), `util/AppLock.kt` (BiometricPrompt).
 - `ui/tools/ToolRunScreen.kt` - generic picker + options + `ActiveJob` for every key in `RUNNABLE_TOOLS`; `PageOrganizer.kt` drag grid for Reorder.
 - `ui/jpg`, `ui/process` (Processing + Success), `ui/viewer` (pages, page chip, pinch/double-tap zoom, pages sheet; edit tools are placeholders).
 - `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
 
-Batch 8:
-- "Open with" + share target: intent-filters on MainActivity for ACTION_VIEW (application/pdf, image/*, docx) and ACTION_SEND / SEND_MULTIPLE (pdf, images). Import into the library, then open the viewer (PDF) or start JPG to PDF with the images (`JpgDraft`).
-- Home-screen shortcuts (res/xml/shortcuts.xml): Scan, JPG to PDF, Compress -> MainActivity with extra "tool".
-- Resume card on Home when `JpgDraft.images` is not empty.
-- Rate prompt on Success after the 3rd success (`settings.successCount >= 3 && !ratePrompted`).
-- App lock: androidx.biometric BiometricPrompt (device credential allowed) when `settings.appLock` is on; MainActivity must become FragmentActivity.
+Batch 9: Gemini Nano via ML Kit GenAI (0 MB, flagship phones only; hide everywhere else).
+- Summarize: a sparkle button in the viewer top bar -> sheet with bullet summary of the current page range (map-reduce per page, show "Summarizing page x of y").
+- Smart rename: after a scan, suggest a name from the first page's OCR text ("Electricity_Bill_Oct_2026").
+- Check `FeatureStatus` first; download through AICore if DOWNLOADABLE; never show AI UI when UNAVAILABLE. Catch BUSY and retry.
+- Verify the exact ML Kit GenAI artifact names and versions before adding (they were beta in 2025-26).

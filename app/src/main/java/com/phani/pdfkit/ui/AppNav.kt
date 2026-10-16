@@ -81,6 +81,33 @@ fun PdfKitApp(settings: Settings) {
     val startScan: () -> Unit = { if ("camera" in settings.hintsSeen) launchScanner() else cameraExplain = true }
     val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
 
+    // Files shared or opened from other apps, and launcher shortcuts.
+    val incoming by com.phani.pdfkit.util.IncomingIntents.pending.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(incoming) {
+        val i = incoming ?: return@LaunchedEffect
+        com.phani.pdfkit.util.IncomingIntents.pending.value = null
+        if (!settings.onboarded) { Graph.prefs.setOnboarded(true); Graph.prefs.setTourDone(true) }
+        when (i) {
+            is com.phani.pdfkit.util.Incoming.ViewPdf -> {
+                val f = com.phani.pdfkit.util.Importer.toOpened(ctx, i.uri)
+                if (f != null) nav.navigate(Routes.viewer(f.absolutePath)) else Toaster.show("Couldn't open that file")
+            }
+            is com.phani.pdfkit.util.Incoming.SharedPdfs -> {
+                val got = com.phani.pdfkit.util.Importer.import(ctx, i.uris)
+                when {
+                    got.size == 1 -> nav.navigate(Routes.viewer(got[0].absolutePath))
+                    got.size > 1 -> { tab = Tab.Files; Toaster.show("Added ${got.size} PDFs to Pdf Kit") }
+                    else -> Toaster.show("Couldn't add those files")
+                }
+            }
+            is com.phani.pdfkit.util.Incoming.SharedImages -> {
+                JpgDraft.clear(); JpgDraft.images.addAll(i.uris)
+                nav.navigate(Routes.JPG) { popUpTo(Routes.MAIN) }
+            }
+            is com.phani.pdfkit.util.Incoming.Tool -> onTool(i.key)
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         NavHost(
             navController = nav,
@@ -98,6 +125,9 @@ fun PdfKitApp(settings: Settings) {
                     onTour = { tab = Tab.Home; scope.launch { Graph.prefs.setTourDone(false); Graph.prefs.setOnboarded(false) } },
                     showTour = settings.onboarded && !settings.tourDone,
                     onTourDone = { scope.launch { Graph.prefs.setTourDone(true) } },
+                    draftCount = JpgDraft.images.size,
+                    onResumeDraft = { nav.navigate(Routes.JPG) },
+                    onDiscardDraft = { JpgDraft.clear() },
                 )
             }
             composable(Routes.TOOLS, arguments = listOf(navArgument("focus") { type = NavType.BoolType; defaultValue = false })) { e ->
