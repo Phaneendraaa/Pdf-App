@@ -99,6 +99,13 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             }
         }
         Group("About") {
+            SRow(PkIcons.Download, "Get the latest version", sub = "You have v${BuildConfigInfo.versionName(ctx)}") {
+                ctx.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Phaneendraaa/Pdf-App/releases/latest"))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            Divider()
             SRow(PkIcons.Play, "Welcome tour", onClick = onTour)
             Divider()
             SRow(PkIcons.Star, "Rate Pdf Kit") { Store.openListing(ctx) }

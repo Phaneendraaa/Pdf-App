@@ -42,6 +42,7 @@ Update it in the same commit as the work it describes.
 - Batch 4: tool runner screen (pick from library or phone, numbered merge order) + PdfBox tools: merge, compress with before/after note, unlock (also from viewer's locked state), protect, PDF to JPG, split (range or every page), rotate, organize pages (drag + delete), page numbers, watermark.
 - Batch 5: ML Kit document scanner (Create sheet + Scan tool, success screen), text recognition screen, viewer page editor: highlight, draw (3 inks), text (tap to add, drag to move), signature (draw pad saved for reuse, drag + size slider), undo, save as copy.
 - Batch 6: PDF to Word and Word to PDF (basic, on-device, honest hints in the UI).
+- CI now deletes older `build-*` releases so only the newest APK exists; release notes show the build/version; Settings has "Get the latest version".
 - Fix: onboarding swallows taps so they can't hit Home underneath.
 - Batch 9: Gemini Nano summary in the viewer (sparkle button only when ML Kit GenAI reports the feature; download via AICore; chunked to the 4k-token limit; copy) and smart rename suggestion after scanning (OCR first page + rule-based `SmartName`, works on every phone).
 - Batch 8: share target + Open with (VIEW pdf opens from cache/opened with "Save to Pdf Kit"; SEND pdfs import; SEND images start JPG to PDF), launcher shortcuts (Scan, JPG to PDF, Compress), resume-draft card on Home, rate prompt after 3rd success, real app lock (BiometricPrompt, relocks after 30 s; MainActivity is now FragmentActivity).

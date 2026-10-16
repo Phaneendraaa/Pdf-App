@@ -48,7 +48,17 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: Pdf Kit build ${{ github.run_number }}
           body: |
-            Automatic build from commit ${{ github.sha }}.
+            **Build ${{ github.run_number }}** (version 0.1.${{ github.run_number }}) from commit ${{ github.sha }}.
             Download **PdfKit.apk** below and install it on your phone.
+            Check Settings > About Pdf Kit in the app: it should show version 0.1.${{ github.run_number }}.
           files: PdfKit.apk
           make_latest: true
+
+      - name: Remove older builds
+        # Keep only the newest release so the download page never shows an old APK.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --repo "${{ github.repository }}" --limit 200 --json tagName --jq '.[].tagName' \
+            | grep '^build-' | grep -vx "build-${{ github.run_number }}" \
+            | while read -r tag; do gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag; done

@@ -6,7 +6,12 @@ An offline PDF toolkit for Android, built with Kotlin and Jetpack Compose. Every
 
 **[Download PdfKit.apk](https://github.com/Phaneendraaa/Pdf-App/releases/latest/download/PdfKit.apk)**
 
-Every push to `main` is built by GitHub Actions and published to [Releases](https://github.com/Phaneendraaa/Pdf-App/releases). The link above always points to the newest build. On your phone, allow "Install unknown apps" for your browser the first time.
+Every push to `main` is built by GitHub Actions and published to [Releases](https://github.com/Phaneendraaa/Pdf-App/releases). The link above always points to the newest build, and older builds are deleted automatically.
+
+On your phone:
+1. Delete any old `PdfKit*.apk` from Downloads first, so the browser doesn't save the new one as `PdfKit (1).apk`.
+2. Open the link, install, and allow "Install unknown apps" for your browser the first time.
+3. In the app, Settings > About shows the version (0.1.<build number>). Settings > Get the latest version opens this page.
 
 ## Tech
 
