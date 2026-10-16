@@ -112,6 +112,13 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     Text(doc?.name ?: res.file.name, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center)
                     Icon(PkIcons.Edit, "Rename", tint = c.ink3, modifier = Modifier.padding(start = 6.dp).size(16.dp))
                 }
+                val (renameHint, dismissRename) = com.phani.pdfkit.util.rememberHint("success_rename")
+                androidx.compose.animation.AnimatedVisibility(renameHint) {
+                    Text(
+                        "Tip: tap the name to rename it", fontSize = 12.5.sp, color = c.blue,
+                        modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(6.dp)).clickable { dismissRename() }.padding(4.dp),
+                    )
+                }
                 Text(
                     res.detail ?: "${Fmt.size(doc?.bytes ?: res.file.length())} · ${res.pages} page${if (res.pages == 1) "" else "s"}",
                     fontSize = 15.sp, color = c.ink2, modifier = Modifier.padding(top = 6.dp),

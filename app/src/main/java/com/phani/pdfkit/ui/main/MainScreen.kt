@@ -32,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,7 +67,8 @@ fun MainScreen(
     onSearch: () -> Unit,
     onOpen: (DocFile) -> Unit,
     onTour: () -> Unit,
-    overlay: @Composable () -> Unit = {},
+    showTour: Boolean = false,
+    onTourDone: () -> Unit = {},
 ) {
     val c = Pk.colors
     val ctx = LocalContext.current
@@ -107,11 +110,18 @@ fun MainScreen(
             HorizontalDivider(color = c.line)
             Row(Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(top = 8.dp, bottom = 10.dp)) {
                 NavItem(PkIcons.Home, "Home", tab == Tab.Home, Modifier.weight(1f)) { onTab(Tab.Home) }
-                NavItem(PkIcons.Folder, "Files", tab == Tab.Files, Modifier.weight(1f)) { onTab(Tab.Files) }
+                NavItem(
+                    PkIcons.Folder, "Files", tab == Tab.Files,
+                    Modifier.weight(1f).onGloballyPositioned { com.phani.pdfkit.ui.home.HomeAnchors.bounds["navfiles"] = it.boundsInRoot() },
+                ) { onTab(Tab.Files) }
                 NavItem(PkIcons.Gear, "Settings", tab == Tab.Settings, Modifier.weight(1f)) { onTab(Tab.Settings) }
             }
         }
-        overlay()
+        if (showTour && tab == Tab.Home) {
+            var ready by remember { mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(500); ready = true }
+            if (ready) com.phani.pdfkit.ui.onboarding.QuickTour(onTourDone)
+        }
     }
 
     if (createSheet) PkSheet({ createSheet = false }, "Create new") {

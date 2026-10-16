@@ -130,6 +130,11 @@ fun FilesScreen(
             ViewToggle(PkIcons.Grid, grid) { grid = true }
         }
 
+        val (hint, dismissHint) = com.phani.pdfkit.util.rememberHint("files_more")
+        com.phani.pdfkit.ui.components.HintBanner(
+            hint && files.isNotEmpty(), PkIcons.DotsV, "Tap ⋮ on a file to share, rename, save or delete it.",
+            Modifier.padding(horizontal = 16.dp, vertical = 4.dp), dismissHint,
+        )
         if (shown.isEmpty()) {
             when (filter) {
                 "star" -> EmptyState(PkIcons.Star, "No starred files", "Tap the star on any file to keep it here.")

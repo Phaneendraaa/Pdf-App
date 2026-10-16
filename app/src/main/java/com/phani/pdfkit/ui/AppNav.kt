@@ -16,6 +16,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -71,7 +75,10 @@ fun PdfKitApp(settings: Settings) {
     val openFile: (DocFile) -> Unit = { d ->
         if (d.isDoc) com.phani.pdfkit.util.FileShare.openExternal(ctx, d) else nav.navigate(Routes.viewer(d.path))
     }
-    val startScan = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val launchScanner = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
+    var cameraExplain by androidx.compose.runtime.remember { mutableStateOf(false) }
+    val startScan: () -> Unit = { if ("camera" in settings.hintsSeen) launchScanner() else cameraExplain = true }
     val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
 
     Box(Modifier.fillMaxSize()) {
@@ -87,7 +94,10 @@ fun PdfKitApp(settings: Settings) {
                 MainScreen(
                     files = files, settings = settings, tab = tab, onTab = { tab = it },
                     onTool = onTool, onSearch = { nav.navigate(Routes.tools(true)) },
-                    onOpen = openFile, onTour = { Toaster.show("Welcome tour arrives in a later update") },
+                    onOpen = openFile,
+                    onTour = { tab = Tab.Home; scope.launch { Graph.prefs.setTourDone(false); Graph.prefs.setOnboarded(false) } },
+                    showTour = settings.onboarded && !settings.tourDone,
+                    onTourDone = { scope.launch { Graph.prefs.setTourDone(true) } },
                 )
             }
             composable(Routes.TOOLS, arguments = listOf(navArgument("focus") { type = NavType.BoolType; defaultValue = false })) { e ->
@@ -156,7 +166,29 @@ fun PdfKitApp(settings: Settings) {
                 )
             }
         }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !settings.onboarded,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(tween(400)) + androidx.compose.animation.slideOutVertically(tween(450)) { -it / 12 },
+        ) {
+            com.phani.pdfkit.ui.onboarding.OnboardingScreen(onFinish = { tab = Tab.Home; scope.launch { Graph.prefs.setOnboarded(true) } })
+        }
         ToastHost()
+    }
+
+    if (cameraExplain) com.phani.pdfkit.ui.components.PkSheet({ cameraExplain = false }, "Scan with your camera") {
+        val c = com.phani.pdfkit.ui.theme.Pk.colors
+        androidx.compose.material3.Text(
+            "Pdf Kit uses Google's on-device document scanner. It finds page edges, fixes the angle and cleans up the image. " +
+                "Photos are processed on your phone and saved only inside Pdf Kit.",
+            color = c.ink2, fontSize = 15.sp, lineHeight = 22.sp,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        com.phani.pdfkit.ui.components.PrimaryButton("Continue", Modifier.padding(top = 18.dp)) {
+            cameraExplain = false
+            scope.launch { Graph.prefs.markHint("camera") }
+            launchScanner()
+        }
     }
 }
 

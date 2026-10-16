@@ -14,13 +14,19 @@ import com.phani.pdfkit.data.Settings
 import com.phani.pdfkit.ui.PdfKitApp
 import com.phani.pdfkit.ui.theme.PdfKitTheme
 import com.phani.pdfkit.ui.theme.ThemeMode
+import com.phani.pdfkit.ui.theme.Pk
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val settings by Graph.prefs.settings.collectAsState(initial = Settings())
+            val loaded by Graph.prefs.settings.collectAsState(initial = null as Settings?)
+            val settings = loaded ?: Settings()
             val mode = when (settings.theme) { "Dark" -> ThemeMode.Dark; "System" -> ThemeMode.System; else -> ThemeMode.Light }
             val dark = mode == ThemeMode.Dark || (mode == ThemeMode.System && isSystemInDarkTheme())
             LaunchedEffect(dark) {
@@ -31,7 +37,11 @@ class MainActivity : ComponentActivity() {
                     else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
                 )
             }
-            PdfKitTheme(mode) { PdfKitApp(settings) }
+            PdfKitTheme(mode) {
+                if (loaded != null) PdfKitApp(settings)
+                else Box(Modifier.fillMaxSize().background(Pk.colors.bg))
+            }
         }
     }
 }
+

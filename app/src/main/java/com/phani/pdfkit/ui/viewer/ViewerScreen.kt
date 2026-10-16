@@ -171,6 +171,12 @@ private fun Pages(pdf: PdfDoc, file: File, initialTool: String?, onReplace: (Str
             "$current / ${pdf.pageCount}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).clip(RoundedCornerShape(99.dp)).background(Color(0x8C101217)).padding(horizontal = 12.dp, vertical = 5.dp),
         )
+        val (hint, dismissHint) = com.phani.pdfkit.util.rememberHint("viewer_tools")
+        com.phani.pdfkit.ui.components.HintBanner(
+            hint && tool == null, PkIcons.Pencil, "Tap Highlight, Draw, Text or Sign to edit the page you're on.",
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 96.dp), dismissHint,
+        )
+        androidx.compose.runtime.LaunchedEffect(tool) { if (tool != null) dismissHint() }
         Row(
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 18.dp).fillMaxWidth()
                 .shadow(18.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.card).padding(horizontal = 6.dp, vertical = 8.dp),
