@@ -72,10 +72,10 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
 
 @Composable
-fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit) {
+fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
     val c = Pk.colors
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -133,6 +133,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     }
     val action = when (key) {
         "merge" -> if (selected.size >= 2) "Merge ${selected.size} PDFs" else "Pick at least 2 PDFs"
+        "edittext" -> "Open editor"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
         "compress" -> "Compress PDF"
@@ -271,6 +272,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             if (first != null) PageOrganizer(first, pageOrder)
                         }
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
+                        "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. Your edits are saved as a new copy; the original stays untouched. Works on text PDFs, not scans.")
                         "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over; tables, columns and images don't. Scanned PDFs need Text Recognition first.")
                         "word2pdf" -> Hint("Converts text, headings, bold and page breaks. Tables and images aren't included yet.")
                     }
@@ -281,6 +283,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         Box(Modifier.navigationBarsPadding().padding(horizontal = 18.dp, vertical = 14.dp)) {
             PrimaryButton(action, enabled = ready) {
                 val src = selected.toList()
+                if (key == "edittext") { onEdit(src.first().absolutePath); return@PrimaryButton }
                 val again = "tool/$key"
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library

@@ -79,7 +79,8 @@ object ToolCatalog {
         Tool("compress", "Compress PDF", "Reduce file size", PkIcons.Compress, BLUE, BLUE_T, "Organize"),
         Tool("rotate", "Rotate PDF", "Rotate pages left or right", PkIcons.Rotate, BLUE, BLUE_T, "Organize"),
         Tool("reorder", "Reorder Pages", "Change page order", PkIcons.Reorder, TEAL, TEAL_T, "Organize"),
-        Tool("text", "Add Text", "Add text to PDF", PkIcons.TextT, BLUE, BLUE_T, "Edit"),
+        Tool("edittext", "Edit PDF Text", "Change existing text in a PDF", PkIcons.Edit, BLUE, BLUE_T, "Edit", isNew = true),
+        Tool("text", "Add Text", "Add new text anywhere on a page", PkIcons.TextT, BLUE, BLUE_T, "Edit"),
         Tool("sign", "Sign PDF", "Draw or place your signature", PkIcons.Signature, VIOLET, VIOLET_T, "Edit"),
         Tool("watermark", "Watermark", "Stamp text on every page", PkIcons.Droplet, SKY, SKY_T, "Edit"),
         Tool("pagenum", "Page Numbers", "Number every page", PkIcons.Hash, ORANGE, ORANGE_T, "Edit"),
@@ -91,8 +92,8 @@ object ToolCatalog {
     val sections = listOf("Convert", "Organize", "Edit", "Secure", "Scan & OCR")
 
     /** Home grid, ordered by search demand. "more" is appended by the screen. */
-    val quick = listOf("jpg2pdf", "pdf2word", "pdf2jpg", "word2pdf", "merge", "compress", "unlock")
-    val quickLabels = mapOf("pdf2word" to "PDF to Word", "word2pdf" to "Word to PDF", "merge" to "Merge", "compress" to "Compress", "unlock" to "Unlock")
+    val quick = listOf("jpg2pdf", "edittext", "pdf2word", "pdf2jpg", "merge", "compress", "unlock")
+    val quickLabels = mapOf("edittext" to "Edit PDF", "pdf2word" to "PDF to Word", "word2pdf" to "Word to PDF", "merge" to "Merge", "compress" to "Compress", "unlock" to "Unlock")
 
     fun byKey(key: String) = all.firstOrNull { it.key == key }
 }

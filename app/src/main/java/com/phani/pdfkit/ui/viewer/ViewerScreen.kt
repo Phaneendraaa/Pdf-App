@@ -192,7 +192,7 @@ private fun Pages(pdf: PdfDoc, file: File, initialTool: String?, onReplace: (Str
         )
         val (hint, dismissHint) = com.phani.pdfkit.util.rememberHint("viewer_tools")
         com.phani.pdfkit.ui.components.HintBanner(
-            hint && tool == null, PkIcons.Pencil, "Tap Highlight, Draw, Text or Sign to edit the page you're on.",
+            hint && tool == null, PkIcons.Pencil, "Tap Edit to change the text on this page, or Highlight, Draw and Sign.",
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 96.dp), dismissHint,
         )
         androidx.compose.runtime.LaunchedEffect(tool) { if (tool != null) dismissHint() }
@@ -201,9 +201,9 @@ private fun Pages(pdf: PdfDoc, file: File, initialTool: String?, onReplace: (Str
                 .shadow(18.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.card).padding(horizontal = 6.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
+            ToolBtn(PkIcons.Edit, "Edit", tool == "edit") { tool = toggle(tool, "edit") }
             ToolBtn(PkIcons.Highlight, "Highlight", tool == "highlight") { tool = toggle(tool, "highlight") }
             ToolBtn(PkIcons.Pencil, "Draw", tool == "draw") { tool = toggle(tool, "draw") }
-            ToolBtn(PkIcons.TextT, "Text", tool == "text") { tool = toggle(tool, "text") }
             ToolBtn(PkIcons.Signature, "Sign", tool == "sign") { tool = toggle(tool, "sign") }
             ToolBtn(PkIcons.Pages, "Pages", false) { pagesSheet = true }
         }

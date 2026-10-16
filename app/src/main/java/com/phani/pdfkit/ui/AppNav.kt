@@ -193,6 +193,7 @@ fun PdfKitApp(settings: Settings) {
                     presetPath = e.arguments?.getString("path")?.ifBlank { null },
                     onBack = { nav.popBackStack() },
                     onStart = { nav.navigate(Routes.PROCESSING) },
+                    onEdit = { p -> nav.navigate(Routes.viewer(p, "edit")) { popUpTo(Routes.MAIN) } },
                 )
             }
         }
@@ -241,6 +242,7 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
 }
 
 private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit) {
+    if (key.startsWith("edit:")) { nav.navigate(Routes.viewer(key.removePrefix("edit:"), "edit")); return }
     when (key) {
         "scan" -> startScan()
         "ocr" -> nav.navigate(Routes.OCR)

@@ -14,7 +14,7 @@ Update it in the same commit as the work it describes.
 
 - 100% offline, Kotlin only, no backend. App size target: under 100 MB (aim ~20 MB).
 - Name: **Pdf Kit**. Play title idea: "JPG to PDF Converter - PDFix" (name still open).
-- Quick tools (home grid, by search demand): JPG to PDF, PDF to Word, PDF to JPG, Word to PDF, Merge, Compress, Unlock, More.
+- Quick tools (home grid): JPG to PDF, Edit PDF, PDF to Word, PDF to JPG, Merge, Compress, Unlock, More. (Edit PDF replaced Word to PDF, which stays in All Tools.)
 - AI: Gemini Nano only (ML Kit GenAI), 0 MB. Features: Summarize (viewer), Smart rename (after scan). Hidden on unsupported phones. Ship in a later batch.
 - PDF to Word / Word to PDF: basic text-level quality on-device; label honestly.
 - Onboarding: 3 slides (tools / offline privacy / simple by design), then 5-step spotlight quick tour.
@@ -78,7 +78,8 @@ Update it in the same commit as the work it describes.
 Edit existing PDF text (major requirement), in 3 parts:
 - [x] Part 1: engine `pdf/TextEdit.kt` - `read(file, page)` returns text lines (`TextBlock`: position as page fractions, baseline, size, bold/italic, family) via a PDFTextStripper subclass; `applyTo(doc, page, ops)` covers each old line with its sampled background color and writes the new text on the same baseline with a matching standard-14 font (Roboto Type0 fallback for wider Unicode). `PageEdits.apply(..., textEdits)` runs it before ink/marks.
 - [x] Part 2: `ui/edit/PageEditor.kt` tool "edit" (+ `ui/edit/TextEditLayer.kt`: `sampleColors`, overlay, `EditLineSheet`): outline every line, tap to open an edit sheet (text, size -/+, bold, color incl. sampled original, delete), live preview (background patch + new text), undo, save.
-- [ ] Part 3: viewer toolbar "Edit" button, All Tools "Edit PDF Text" (+ Home quick tile decision), first-use hint.
+- [x] Part 3: viewer toolbar "Edit" (replaces "Text"; Add text lives in the editor chips), All Tools "Edit PDF Text" (key `edittext`, picks a PDF then opens the viewer in edit mode), Home quick tile "Edit PDF" (replaced Word to PDF, still in All Tools), file menu "Edit text", hint text updated.
+- Note: edits cover the old line and write new text on top; the original text still exists underneath in the file (fine for edits, not a true redaction).
 
 Then Batch 10 (release hardening) after real-device feedback:
 - APK is 18.4 MB at build 9 without R8, already under target. Turn on R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) with keep rules for PdfBox/ML Kit; check size.
