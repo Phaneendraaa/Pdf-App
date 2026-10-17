@@ -108,6 +108,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var imgQuality by remember { mutableStateOf("Normal") }
+    var jpgWhich by remember { mutableStateOf("All pages") }
+    var jpgRange by remember { mutableStateOf("") }
     var splitMode by remember { mutableStateOf("Extract pages") }
     var range by remember { mutableStateOf("") }
     var rotation by remember { mutableStateOf("Right") }
@@ -237,7 +239,13 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         "pdf2jpg" -> {
                             Label("Image quality")
                             Segmented(listOf("Normal", "High"), imgQuality) { imgQuality = it }
-                            Hint("Each page becomes one JPG${if (pages > 0) " ($pages images)" else ""}.")
+                            Label("Pages")
+                            Segmented(listOf("All pages", "Choose pages"), jpgWhich) { jpgWhich = it }
+                            if (jpgWhich == "Choose pages") {
+                                Spacer(Modifier.height(10.dp))
+                                TextField(jpgRange, "Pages, e.g. 1-3, 5", KeyboardType.Text) { jpgRange = it }
+                            }
+                            Hint(if (jpgWhich == "All pages") "Each page becomes one JPG${if (pages > 0) " ($pages images)" else ""}." else "Only the pages you list become JPGs${if (pages > 0) " (this file has $pages pages)" else ""}.")
                         }
                         "split" -> {
                             Label("How to split")
@@ -333,11 +341,15 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         val n = PdfTools.protect(src.first(), password, out)
                         JobResult(out, n, "PDF protected!", note = "Password required to open", source = src.first(), again = again, againLabel = "Protect another PDF")
                     }
-                    "pdf2jpg" -> ActiveJob.set("PDF to JPG", "Converting pages...", listOf("Opening PDF", "Rendering pages", "Saving images")) { r ->
+                    "pdf2jpg" -> {
+                        val only = if (jpgWhich == "Choose pages") {
+                            try { PdfTools.parseRange(jpgRange, pages) } catch (e: Exception) { Toaster.show(e.message ?: "Check the page numbers"); return@PrimaryButton }
+                        } else null
+                        ActiveJob.set("PDF to JPG", "Converting pages...", listOf("Opening PDF", "Rendering pages", "Saving images")) { r ->
                         val b = base()
-                        val outs = PdfTools.toImages(src.first(), { i -> lib.newFile("${b}_p$i", "jpg") }, if (imgQuality == "High") 2.8f else 1.8f, r)
+                        val outs = PdfTools.toImages(src.first(), { i -> lib.newFile("${b}_p$i", "jpg") }, if (imgQuality == "High") 2.8f else 1.8f, r, only)
                         if (outs.isEmpty()) null else JobResult(outs.first(), outs.size, "${outs.size} image${if (outs.size == 1) "" else "s"} saved!", detail = "Saved to Files › Images", again = again, againLabel = "Convert another PDF")
-                    }
+                    } }
                     "split" -> if (splitMode == "Every page") {
                         ActiveJob.set("Splitting PDF", "Splitting your PDF...", listOf("Reading pages", "Creating files", "Saving")) { r ->
                             val b = base()
@@ -397,10 +409,17 @@ private fun Hint(text: String, color: Color = Pk.colors.ink2) {
 @Composable
 private fun PasswordField(value: String, placeholder: String, onChange: (String) -> Unit) {
     val c = Pk.colors
+    var show by remember { mutableStateOf(false) }
     OutlinedTextField(
         value, onChange, singleLine = true, modifier = Modifier.fillMaxWidth(),
         placeholder = { Text(placeholder, color = c.ink3) },
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            Icon(
+                if (show) PkIcons.EyeOff else PkIcons.Eye, if (show) "Hide password" else "Show password", tint = c.ink2,
+                modifier = Modifier.size(42.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { show = !show }.padding(10.dp),
+            )
+        },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),

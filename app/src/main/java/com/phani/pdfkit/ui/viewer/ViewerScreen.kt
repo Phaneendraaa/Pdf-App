@@ -70,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -129,6 +130,8 @@ fun ViewerScreen(
     var searching by remember { mutableStateOf(false) }
     var copyOpen by remember { mutableStateOf(false) }
     var pageNow by remember { mutableIntStateOf(0) }
+    val settings by Graph.prefs.settings.collectAsState(initial = com.phani.pdfkit.data.Settings())
+    val night = settings.nightReading
     LaunchedEffect(path) { if (doc?.isPdf == true) ai = com.phani.pdfkit.ai.NanoAi.state(ctx) }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
@@ -143,7 +146,7 @@ fun ViewerScreen(
                 doc.isImage -> ZoomBox(Modifier.fillMaxSize()) {
                     AsyncImage(File(doc.path), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(12.dp))
                 }
-                else -> PdfPages(doc, initialTool, searching, { searching = false }, { pageNow = it }, onUnlock, onReplace)
+                else -> PdfPages(doc, initialTool, searching, { searching = false }, { pageNow = it }, onUnlock, onReplace, night)
             }
         }
     }
@@ -161,6 +164,9 @@ fun ViewerScreen(
                 SheetOption(PkIcons.Hash, teal.fg, teal.bg, "Add page numbers") { more = false; onTool("pagenum", doc.path) }
                 SheetOption(PkIcons.Compress, teal.fg, teal.bg, "Compress", "Make it smaller than 200 KB, 500 KB...") { more = false; onTool("compress", doc.path) }
                 SheetOption(PkIcons.Crop, teal.fg, teal.bg, "Crop pages") { more = false; onTool("crop", doc.path) }
+            }
+            if (doc.isPdf) SheetOption(PkIcons.Moon, blue.fg, blue.bg, if (night) "Turn off night reading" else "Night reading", "Dark pages, easier on the eyes") {
+                more = false; scope.launch { Graph.prefs.setNightReading(!night) }
             }
             if (doc.isPdf) SheetOption(PkIcons.Copy, blue.fg, blue.bg, "Select and copy text", "Text on the page you are reading") { more = false; copyOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Printer, blue.fg, blue.bg, "Print", "Pick pages in the print screen") { more = false; com.phani.pdfkit.util.PrintPdf.print(ctx, doc.file, doc.name) }
@@ -184,7 +190,7 @@ fun ViewerScreen(
 @Composable
 private fun PdfPages(
     doc: DocFile, initialTool: String?, searching: Boolean, onSearchClose: () -> Unit, onPage: (Int) -> Unit,
-    onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit,
+    onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit, night: Boolean = false,
 ) {
     val c = Pk.colors
     val opened by produceState<PdfDoc.Open?>(null, doc.path) { value = withContext(Dispatchers.IO) { PdfDoc.open(doc.file) } }
@@ -198,14 +204,14 @@ private fun PdfPages(
             PrimaryButton("Unlock PDF", Modifier.padding(horizontal = 40.dp)) { onUnlock(doc) }
         }
         PdfDoc.Open.Broken -> EmptyState(PkIcons.Info, "Can't open this file", "The PDF may be damaged or in an unsupported format.")
-        is PdfDoc.Open.Ok -> pdf?.let { Pages(it, doc.file, initialTool, searching, onSearchClose, onPage, onReplace) }
+        is PdfDoc.Open.Ok -> pdf?.let { Pages(it, doc.file, initialTool, searching, onSearchClose, onPage, onReplace, night) }
     }
 }
 
 @Composable
 private fun Pages(
     pdf: PdfDoc, file: File, initialTool: String?, searching: Boolean, onSearchClose: () -> Unit, onPage: (Int) -> Unit,
-    onReplace: (String) -> Unit,
+    onReplace: (String) -> Unit, night: Boolean = false,
 ) {
     val c = Pk.colors
     val ctx = LocalContext.current
@@ -213,6 +219,15 @@ private fun Pages(
     val scope = rememberCoroutineScope()
     var tool by remember { mutableStateOf(initialTool) }
     var pagesSheet by remember { mutableStateOf(false) }
+    var goTo by remember { mutableStateOf(false) }
+    // Keep the screen awake while reading.
+    val view = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(view) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
+    val invert = remember {
+        androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+            androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(-0.9f, 0f, 0f, 0f, 235f, 0f, -0.9f, 0f, 0f, 235f, 0f, 0f, -0.9f, 0f, 235f, 0f, 0f, 0f, 1f, 0f)),
+        )
+    }
     val current by remember { derivedStateOf { (list.firstVisibleItemIndex + if (list.firstVisibleItemScrollOffset > 300) 1 else 0).coerceAtMost(pdf.pageCount - 1) + 1 } }
 
     // Links and bookmarks are light; the text index is built only once search is opened.
@@ -300,11 +315,11 @@ private fun Pages(
                     val hits = byPage[i]
                     val links = meta?.links?.get(i)
                     Box(
-                        Modifier.fillMaxWidth().aspectRatio(ratio).shadow(6.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)).background(Color.White),
+                        Modifier.fillMaxWidth().aspectRatio(ratio).shadow(6.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)).background(if (night) Color(0xFF141414) else Color.White),
                         contentAlignment = Alignment.Center,
                     ) {
                         Crossfade(bmp, label = "page") { b ->
-                            if (b != null) Image(b.asImageBitmap(), "Page ${i + 1}", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                            if (b != null) Image(b.asImageBitmap(), "Page ${i + 1}", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds, colorFilter = if (night) invert else null)
                             else CircularProgressIndicator(Modifier.size(24.dp), color = c.blue.copy(alpha = 0.5f), strokeWidth = 2.dp)
                         }
                         if (hits != null) Canvas(Modifier.fillMaxSize()) {
@@ -337,7 +352,7 @@ private fun Pages(
         ) {
             Text(
                 "$current / ${pdf.pageCount}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(12.dp).clip(RoundedCornerShape(99.dp)).background(Color(0x8C101217)).padding(horizontal = 12.dp, vertical = 5.dp),
+                modifier = Modifier.padding(12.dp).clip(RoundedCornerShape(99.dp)).background(Color(0x8C101217)).clickable { goTo = true }.padding(horizontal = 12.dp, vertical = 5.dp),
             )
         }
         AnimatedVisibility(
@@ -387,6 +402,30 @@ private fun Pages(
             ToolBtn(PkIcons.Signature, "Sign", tool == "sign") { tool = toggle(tool, "sign") }
             ToolBtn(PkIcons.Pages, "Pages", false) { pagesSheet = true }
         }
+    }
+
+    if (goTo) {
+        var value by remember { mutableStateOf("") }
+        val go = {
+            val n = value.toIntOrNull()
+            if (n != null && n in 1..pdf.pageCount) { goTo = false; scope.launch { list.animateScrollToItem(n - 1) } }
+            else Toaster.show("Pick a page from 1 to ${pdf.pageCount}")
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { goTo = false }, containerColor = c.card, shape = RoundedCornerShape(20.dp),
+            title = { Text("Go to page", color = c.ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value, { value = it.filter(Char::isDigit).take(5) }, singleLine = true,
+                    placeholder = { Text("1 to ${pdf.pageCount}", color = c.ink3) }, shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { go() }),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
+                )
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { go() }) { Text("Go", color = c.blue, fontWeight = FontWeight.SemiBold) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { goTo = false }) { Text("Cancel", color = c.ink2) } },
+        )
     }
 
     if (pagesSheet) PkSheet({ pagesSheet = false }, "Pages") {

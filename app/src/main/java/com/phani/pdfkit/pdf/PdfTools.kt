@@ -159,12 +159,13 @@ object PdfTools {
     }
 
     // ---------- PDF to images ----------
-    suspend fun toImages(src: File, outFor: (Int) -> File, scale: Float, report: (Float) -> Unit): List<File> {
+    suspend fun toImages(src: File, outFor: (Int) -> File, scale: Float, report: (Float) -> Unit, only: List<Int>? = null): List<File> {
         val fd = try { ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY) } catch (e: Exception) { throw ToolError("Can't open this PDF.") }
         val renderer = try { PdfRenderer(fd) } catch (e: SecurityException) { fd.close(); throw ToolError("This PDF is password protected. Unlock it first.") }
         val out = ArrayList<File>()
         renderer.use { r ->
-            for (i in 0 until r.pageCount) {
+            val list = only?.filter { it in 0 until r.pageCount } ?: (0 until r.pageCount).toList()
+            for ((n, i) in list.withIndex()) {
                 coroutineContext.ensureActive()
                 r.openPage(i).use { p ->
                     val w = (p.width * scale).toInt(); val h = (p.height * scale).toInt()
@@ -175,7 +176,7 @@ object PdfTools {
                     f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
                     bmp.recycle(); out += f
                 }
-                report((i + 1f) / r.pageCount)
+                report((n + 1f) / list.size)
             }
         }
         fd.close()

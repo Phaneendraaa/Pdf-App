@@ -109,6 +109,8 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     var askSave by remember { mutableStateOf(false) }
     val inLibrary = file.absolutePath.startsWith(Graph.library.dir.absolutePath)
     val history = remember { mutableStateListOf<String>() } // "s", "t", "g", "e<id>" for undo order
+    val redo = remember { mutableStateListOf<Pair<String, Any?>>() }
+    fun record(h: String) { history += h; redo.clear() }
     val lineEdits = remember { androidx.compose.runtime.mutableStateMapOf<Int, LineEdit>() }
     var editing by remember { mutableStateOf<com.phani.pdfkit.pdf.TextBlock?>(null) }
     val layout by produceState<com.phani.pdfkit.pdf.TextEdit.Page?>(null, page) {
@@ -123,7 +125,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     LaunchedEffect(tool) {
         if (tool == "sign" && sig == null) {
             val saved = withContext(Dispatchers.IO) { SignatureStore.load(ctx) }
-            if (saved != null) { sig = saved; history += "g" } else padOpen = true
+            if (saved != null) { sig = saved; record("g") } else padOpen = true
         }
         if (tool == "text" && texts.isEmpty()) Toaster.show("Tap the page where you want text")
     }
@@ -169,17 +171,27 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                 Modifier.size(40.dp).clip(CircleShape).clickable(enabled = history.isNotEmpty()) {
                     val h = history.removeAt(history.lastIndex)
                     when {
-                        h == "s" -> if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex)
-                        h == "t" -> if (texts.isNotEmpty()) texts.removeAt(texts.lastIndex)
-                        h == "g" -> sig = null
-                        h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id ->
-                            // Drop this edit; if an earlier edit of the same line exists in history it stays removed (simple undo).
-                            lineEdits.remove(id)
-                        }
+                        h == "s" -> if (strokes.isNotEmpty()) redo += h to strokes.removeAt(strokes.lastIndex)
+                        h == "t" -> if (texts.isNotEmpty()) redo += h to texts.removeAt(texts.lastIndex)
+                        h == "g" -> { redo += h to sig; sig = null }
+                        h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id -> redo += h to lineEdits.remove(id) }
                     }
                 },
                 contentAlignment = Alignment.Center,
             ) { Icon(PkIcons.Rotate, "Undo", tint = if (history.isNotEmpty()) c.ink else c.ink3, modifier = Modifier.size(20.dp).graphicsFlip()) }
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable(enabled = redo.isNotEmpty()) {
+                    val (h, v) = redo.removeAt(redo.lastIndex)
+                    when {
+                        h == "s" -> (v as? InkStroke)?.let { strokes += it }
+                        h == "t" -> (v as? Mark)?.let { texts += it }
+                        h == "g" -> (v as? Bitmap)?.let { sig = it }
+                        h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id -> (v as? LineEdit)?.let { lineEdits[id] = it } }
+                    }
+                    history += h
+                },
+                contentAlignment = Alignment.Center,
+            ) { Icon(PkIcons.Rotate, "Redo", tint = if (redo.isNotEmpty()) c.ink else c.ink3, modifier = Modifier.size(20.dp)) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
             val maxW = maxWidth; val maxH = maxHeight
@@ -194,7 +206,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                             detectDragGestures(
                                 onDragStart = { o -> live.clear(); live += (o.x / wPx) to (o.y / hPx) },
                                 onDragEnd = {
-                                    if (live.size > 1) { strokes += InkStroke(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink); history += "s" }
+                                    if (live.size > 1) { strokes += InkStroke(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink); record("s") }
                                     live.clear()
                                 },
                                 onDragCancel = { live.clear() },
@@ -300,14 +312,14 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     editing?.let { b ->
         val sampled = remember(b.id, bmp) { sampleColors(bmp, b) }
         EditLineSheet(b, lineEdits[b.id], sampled, { editing = null }) { e ->
-            lineEdits[b.id] = e; history += "e${b.id}"; editing = null
+            lineEdits[b.id] = e; record("e${b.id}"); editing = null
         }
     }
 
     if (padOpen) SignaturePad({ padOpen = false; if (sig == null) tool = "draw" }) { b ->
         padOpen = false
         scope.launch { withContext(Dispatchers.IO) { SignatureStore.save(ctx, b) } }
-        if (sig == null) history += "g"
+        if (sig == null) record("g")
         sig = b; sigW = 0.3f
     }
 
@@ -325,7 +337,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             confirmButton = {
                 TextButton(enabled = value.isNotBlank(), onClick = {
                     texts += Mark(value.trim(), at.x.coerceAtMost(0.9f), (at.y - 0.012f).coerceIn(0f, 0.97f), 0.032f, if (ink == INKS[2] || ink == INKS[1]) ink else INKS[0])
-                    history += "t"; textAt = null
+                    record("t"); textAt = null
                 }) { Text("Add", color = c.blue, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { textAt = null }) { Text("Cancel", color = c.ink2) } },

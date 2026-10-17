@@ -94,6 +94,8 @@ object PkIcons {
     val UserX = icon("userx", c(9f, 7f, 4f), "M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2M17 8l5 5M22 8l-5 5")
     val Play = icon("play", "M6 3.5v17l14-8.5z")
     val Sparkle = icon("sparkle", "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z", "M19 3v4M17 5h4")
+    val EyeOff = icon("eyeoff", "M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.1M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-0.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20")
+    val Moon = icon("moon", "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z")
     val ChevronUp = icon("chevu", "M18 15l-6-6-6 6")
     val ChevronDown = icon("chevd", "M6 9l6 6 6-6")
     val Bookmark = icon("bookmark", "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z")
