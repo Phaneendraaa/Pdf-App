@@ -145,7 +145,14 @@ fun JpgToPdfScreen(settings: Settings, onBack: () -> Unit, onCreate: () -> Unit)
                         .clip(RoundedCornerShape(12.dp))
                         .background(c.surf),
                 ) {
-                    AsyncImage(u, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    val turn = JpgDraft.rotations[key] ?: 0
+                    val shownTurn by animateFloatAsState(turn.toFloat(), label = "turn")
+                    AsyncImage(u, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = shownTurn })
+                    Box(
+                        Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp).shadow(2.dp, CircleShape).clip(CircleShape)
+                            .background(Color.White).clickable { JpgDraft.rotations[key] = turn + 90 },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(PkIcons.Rotate, "Rotate", tint = Color(0xFF101217), modifier = Modifier.size(15.dp)) }
                     Box(
                         Modifier.padding(7.dp).size(24.dp).clip(CircleShape).background(if (dragging) c.blue else Color(0x9E101217)),
                         contentAlignment = Alignment.Center,

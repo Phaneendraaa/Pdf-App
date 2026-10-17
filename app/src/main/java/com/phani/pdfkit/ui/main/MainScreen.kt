@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -79,6 +80,7 @@ fun MainScreen(
     var createSheet by remember { mutableStateOf(false) }
     var moreFor by remember { mutableStateOf<DocFile?>(null) }
     var renameFor by remember { mutableStateOf<DocFile?>(null) }
+    var infoFor by remember { mutableStateOf<DocFile?>(null) }
 
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) scope.launch {
@@ -106,6 +108,7 @@ fun MainScreen(
                         Tab.Files -> FilesScreen(
                             files = files, starred = settings.starred, onOpen = onOpen, onMore = { moreFor = it },
                             onStar = { d -> scope.launch { Graph.prefs.toggleStar(d.path) } }, onSearch = onSearch,
+                            onMerge = { docs -> onTool("mergefiles:" + docs.joinToString("\n") { it.path }) },
                         )
                         Tab.Settings -> SettingsScreen(settings, onTour)
                     }
@@ -155,11 +158,44 @@ fun MainScreen(
                 moreFor = null; scope.launch { Graph.prefs.toggleStar(d.path) }
             }
             SheetOption(PkIcons.Edit, c.ink2, c.surf, "Rename") { moreFor = null; renameFor = d }
+            SheetOption(PkIcons.Copy, c.ink2, c.surf, "Duplicate") {
+                moreFor = null
+                scope.launch {
+                    val copy = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { d.file.copyTo(Graph.library.newFile(d.name.substringBeforeLast('.') + " copy", d.ext)) }.getOrNull()
+                    }
+                    Graph.library.refresh()
+                    Toaster.show(copy?.let { "Made a copy: ${it.name}" } ?: "Couldn't copy the file")
+                }
+            }
+            SheetOption(PkIcons.Info, c.ink2, c.surf, "Details") { moreFor = null; infoFor = d }
             SheetOption(PkIcons.Trash, red.fg, red.bg, "Delete", danger = true) {
                 moreFor = null
                 scope.launch {
                     val trash = Graph.library.softDelete(d)
                     if (trash != null) Toaster.show("Deleted ${d.name}", "Undo") { scope.launch { Graph.library.restore(trash, d.name) } }
+                }
+            }
+        }
+    }
+
+    infoFor?.let { d ->
+        val pages by androidx.compose.runtime.produceState<Int?>(null, d.path) {
+            value = if (d.isPdf) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.phani.pdfkit.util.PdfThumbs.pageCount(d.file) } else null
+        }
+        PkSheet({ infoFor = null }, "Details") {
+            val when_ = java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US).format(java.util.Date(d.modified))
+            listOfNotNull(
+                "Name" to d.name,
+                "Type" to (if (d.isPdf) "PDF document" else if (d.isDoc) "Word document" else "Image"),
+                "Size" to com.phani.pdfkit.data.Fmt.size(d.bytes),
+                pages?.let { "Pages" to "$it" },
+                "Modified" to when_,
+                "Stored" to "On this phone, inside Pdf Kit",
+            ).forEach { (k, v) ->
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp)) {
+                    androidx.compose.material3.Text(k, color = c.ink2, fontSize = 14.5.sp, modifier = Modifier.width(96.dp))
+                    androidx.compose.material3.Text(v, color = c.ink, fontSize = 14.5.sp, modifier = Modifier.weight(1f))
                 }
             }
         }

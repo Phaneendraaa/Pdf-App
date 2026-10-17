@@ -59,6 +59,7 @@ import com.phani.pdfkit.ui.components.pressable
 import com.phani.pdfkit.ui.icons.PkIcons
 import com.phani.pdfkit.ui.theme.Pk
 import java.io.File
+import kotlinx.coroutines.launch
 
 private val FILTERS = listOf("all" to "All", "pdf" to "PDFs", "img" to "Images", "star" to "Starred")
 private val SORTS = listOf("date" to "Date modified", "name" to "Name", "size" to "Size")
@@ -71,8 +72,14 @@ fun FilesScreen(
     onMore: (DocFile) -> Unit,
     onStar: (DocFile) -> Unit,
     onSearch: () -> Unit,
+    onMerge: (List<DocFile>) -> Unit = {},
 ) {
     val c = Pk.colors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val picked = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    val selecting = picked.isNotEmpty()
+    androidx.activity.compose.BackHandler(selecting) { picked.clear() }
     var filter by rememberSaveable { mutableStateOf("all") }
     var sort by rememberSaveable { mutableStateOf("date") }
     var grid by rememberSaveable { mutableStateOf(false) }
@@ -95,9 +102,36 @@ fun FilesScreen(
         }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Files", style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.weight(1f))
-            IconBtn(PkIcons.Search, label = "Search", onClick = onSearch)
+        AnimatedContent(selecting, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "filesHeader") { sel ->
+            if (!sel) Row(Modifier.fillMaxWidth().height(64.dp).padding(start = 22.dp, end = 10.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Files", style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.weight(1f))
+                IconBtn(PkIcons.Search, label = "Search", onClick = onSearch)
+            } else Row(Modifier.fillMaxWidth().height(64.dp).padding(start = 8.dp, end = 6.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBtn(PkIcons.Close, label = "Cancel selection") { picked.clear() }
+                Text("${picked.size} selected", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.weight(1f))
+                Text(
+                    if (picked.size == shown.size) "None" else "All", color = c.blue, fontWeight = FontWeight.Medium, fontSize = 15.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        if (picked.size == shown.size) picked.clear() else { picked.clear(); picked.addAll(shown.map { it.path }) }
+                    }.padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+                IconBtn(PkIcons.Share, label = "Share") {
+                    val docs = files.filter { it.path in picked }
+                    com.phani.pdfkit.util.FileShare.share(ctx, docs); picked.clear()
+                }
+                val pdfs = files.filter { it.path in picked && it.isPdf }
+                if (pdfs.size >= 2) IconBtn(PkIcons.Merge, label = "Merge") { onMerge(pdfs); picked.clear() }
+                IconBtn(PkIcons.Trash, tint = c.red, label = "Delete") {
+                    val docs = files.filter { it.path in picked }
+                    picked.clear()
+                    scope.launch {
+                        val trashed = docs.mapNotNull { d -> com.phani.pdfkit.Graph.library.softDelete(d)?.let { it to d.name } }
+                        if (trashed.isNotEmpty()) com.phani.pdfkit.ui.components.Toaster.show("Deleted ${trashed.size} file${if (trashed.size == 1) "" else "s"}", "Undo") {
+                            scope.launch { trashed.forEach { (t, n) -> com.phani.pdfkit.Graph.library.restore(t, n) } }
+                        }
+                    }
+                }
+            }
         }
         Row(
             Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(top = 14.dp),
@@ -125,6 +159,10 @@ fun FilesScreen(
                 Icon(PkIcons.ArrowDown, null, tint = c.ink, modifier = Modifier.size(15.dp))
             }
             Spacer(Modifier.weight(1f))
+            if (!selecting && shown.isNotEmpty()) Text(
+                "Select", color = c.blue, fontWeight = FontWeight.Medium, fontSize = 14.5.sp,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { grid = false; picked.add(shown.first().path) }.padding(horizontal = 10.dp, vertical = 7.dp),
+            )
             ViewToggle(PkIcons.List, !grid) { grid = false }
             Spacer(Modifier.width(6.dp))
             ViewToggle(PkIcons.Grid, grid) { grid = true }
@@ -143,12 +181,17 @@ fun FilesScreen(
             }
             return@Column
         }
-        AnimatedContent(grid, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "view") { isGrid ->
+        AnimatedContent(grid && !selecting, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "view") { isGrid ->
             if (!isGrid) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                     items(shown, key = { it.path }) { d ->
                         Column(Modifier.animateItem()) {
-                            FileRow(d, starred = d.path in starred, onStar = { onStar(d) }, onMore = { onMore(d) }) { onOpen(d) }
+                            val isPicked = d.path in picked
+                            FileRow(
+                                d, starred = d.path in starred, onStar = { onStar(d) }, onMore = { onMore(d) },
+                                selected = if (selecting) isPicked else null,
+                                onLongClick = { if (isPicked) picked.remove(d.path) else picked.add(d.path) },
+                            ) { if (selecting) { if (isPicked) picked.remove(d.path) else picked.add(d.path) } else onOpen(d) }
                             HorizontalDivider(Modifier.padding(start = 80.dp, end = 22.dp), color = c.line)
                         }
                     }

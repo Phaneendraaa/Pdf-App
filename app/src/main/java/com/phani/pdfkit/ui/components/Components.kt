@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -126,28 +127,45 @@ fun FileThumb(doc: DocFile, size: Dp = 40.dp) {
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun FileRow(
     doc: DocFile,
     starred: Boolean? = null,
     onStar: (() -> Unit)? = null,
     onMore: () -> Unit,
+    selected: Boolean? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val c = Pk.colors
+    val bg by androidx.compose.animation.animateColorAsState(if (selected == true) c.blueTint else Color.Transparent, label = "rowSel")
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 22.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth().background(bg).combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(start = 22.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) { FileThumb(doc) }
+        Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) {
+            FileThumb(doc)
+            androidx.compose.animation.AnimatedVisibility(
+                selected == true, enter = androidx.compose.animation.scaleIn() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut(),
+            ) {
+                Box(Modifier.size(24.dp).clip(CircleShape).background(c.blue), contentAlignment = Alignment.Center) {
+                    Icon(PkIcons.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+            }
+        }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(doc.name, style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${Fmt.size(doc.bytes)} · ${Fmt.date(doc.modified)}", style = MaterialTheme.typography.bodySmall, color = c.ink2, modifier = Modifier.padding(top = 2.dp))
         }
-        if (starred != null && onStar != null) {
-            IconBtn(if (starred) PkIcons.StarFilled else PkIcons.Star, tint = if (starred) c.amber else c.ink3, size = 21.dp, onClick = onStar)
+        if (selected == null) {
+            if (starred != null && onStar != null) {
+                IconBtn(if (starred) PkIcons.StarFilled else PkIcons.Star, tint = if (starred) c.amber else c.ink3, size = 21.dp, onClick = onStar)
+            }
+            IconBtn(PkIcons.DotsV, tint = c.ink2, size = 20.dp, onClick = onMore)
         }
-        IconBtn(PkIcons.DotsV, tint = c.ink2, size = 20.dp, onClick = onMore)
     }
 }
 

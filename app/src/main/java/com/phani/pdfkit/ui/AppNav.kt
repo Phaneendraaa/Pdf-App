@@ -230,6 +230,7 @@ fun PdfKitApp(settings: Settings) {
 private fun startImagesToPdf(ctx: Context, settings: Settings) {
     val uris = JpgDraft.images.toList()
     val opts = JpgDraft.options
+    val turnsNow = JpgDraft.rotations.toMap()
     val quality = Quality.of(settings.compression)
     ActiveJob.set(
         title = "Creating PDF",
@@ -237,7 +238,7 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
         steps = listOf("Preparing images", "Optimizing pages", "Creating PDF file", "Finalizing..."),
     ) { report ->
         val out = Graph.library.newFile(Graph.library.stampedName("Images"))
-        val pages = ImagesToPdf.create(ctx, uris, out, opts, quality, report)
+        val pages = ImagesToPdf.create(ctx, uris, out, opts, quality, report, turnsNow)
         if (pages == 0) { out.delete(); null } else {
             JpgDraft.clear()
             JobResult(out, pages, again = Routes.JPG)
@@ -247,6 +248,18 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
 
 private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit) {
     if (key.startsWith("edit:")) { nav.navigate(Routes.viewer(key.removePrefix("edit:"), "edit")); return }
+    if (key.startsWith("mergefiles:")) {
+        val src = key.removePrefix("mergefiles:").split('\n').map { java.io.File(it) }.filter { it.exists() }
+        if (src.size < 2) { Toaster.show("Pick at least 2 PDFs to merge"); return }
+        ActiveJob.set("Merging PDFs", "Merging your PDFs...", listOf("Reading files", "Combining pages", "Saving PDF")) { r ->
+            val lib = Graph.library
+            val out = lib.newFile(lib.stampedName("Merged"))
+            val n = com.phani.pdfkit.pdf.PdfTools.merge(src, out, r)
+            JobResult(out, n, "PDFs merged!", detail = "${src.size} files · $n pages", again = Routes.tool("merge"), againLabel = "Merge more PDFs")
+        }
+        nav.navigate(Routes.PROCESSING)
+        return
+    }
     when (key) {
         "scan" -> startScan()
         "ocr" -> nav.navigate(Routes.OCR)

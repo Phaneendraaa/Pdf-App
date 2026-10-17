@@ -38,6 +38,8 @@ object ActiveJob {
 /** Draft for the JPG to PDF flow, kept while the app is open so it can be resumed. */
 object JpgDraft {
     val images = mutableStateListOf<Uri>()
+    /** Extra rotation per image (by its uri string), in degrees. */
+    val rotations = androidx.compose.runtime.mutableStateMapOf<String, Int>()
     var options by mutableStateOf(PageOptions())
-    fun clear() { images.clear(); options = PageOptions() }
+    fun clear() { images.clear(); rotations.clear(); options = PageOptions() }
 }
