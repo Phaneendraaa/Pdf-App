@@ -153,6 +153,7 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
         PkSheet({ more = false }, doc.name) {
             SheetOption(PkIcons.Share, blue.fg, blue.bg, "Share") { more = false; FileShare.share(ctx, listOf(doc)) }
             if (doc.isPdf) SheetOption(PkIcons.Copy, blue.fg, blue.bg, "Select and copy text", "Text on the page you are reading") { more = false; copyOpen = true }
+            if (doc.isPdf) SheetOption(PkIcons.Printer, blue.fg, blue.bg, "Print", "Pick pages in the print screen") { more = false; com.phani.pdfkit.util.PrintPdf.print(ctx, doc.file, doc.name) }
             SheetOption(PkIcons.ArrowRight, blue.fg, blue.bg, "Open with another app") { more = false; FileShare.openExternal(ctx, doc) }
             if (!doc.path.startsWith(Graph.library.dir.absolutePath)) {
                 val green = tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
@@ -264,6 +265,10 @@ private fun Pages(
             onClose = { tool = null },
             onSaved = { out -> tool = null; onReplace(out.absolutePath) },
             onNoFields = { tool = "text" },
+        ) else if (t == "crop") com.phani.pdfkit.ui.edit.CropEditor(
+            pdf = pdf, file = file, startPage = current - 1,
+            onClose = { tool = null },
+            onSaved = { out -> tool = null; onReplace(out.absolutePath) },
         ) else com.phani.pdfkit.ui.edit.PageEditor(
             pdf = pdf, file = file, page = current - 1, initialTool = t,
             onClose = { tool = null },

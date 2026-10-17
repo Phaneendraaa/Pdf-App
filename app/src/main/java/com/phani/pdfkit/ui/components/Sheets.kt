@@ -122,3 +122,19 @@ fun RenameDialog(current: String, onDismiss: () -> Unit, onRename: (String) -> U
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.ink2) } },
     )
 }
+
+/** The "Update this PDF or keep a copy" question shown after any edit. */
+@Composable
+fun SaveChoiceSheet(
+    title: String, onDismiss: () -> Unit, onUpdate: () -> Unit, onCopy: () -> Unit,
+    copyHint: String = "Keeps the original untouched", extra: @Composable ColumnScope.() -> Unit = {},
+) {
+    val c = Pk.colors
+    val blue = com.phani.pdfkit.ui.theme.tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
+    val green = com.phani.pdfkit.ui.theme.tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
+    PkSheet(onDismiss, title) {
+        SheetOption(PkIcons.Check, blue.fg, blue.bg, "Update this PDF", "Replaces the current file, no extra copy") { onDismiss(); onUpdate() }
+        SheetOption(PkIcons.Copy, green.fg, green.bg, "Save as a new copy", copyHint) { onDismiss(); onCopy() }
+        extra()
+    }
+}

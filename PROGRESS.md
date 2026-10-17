@@ -35,7 +35,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 11** - Viewer upgrades: search in PDF (highlighted hits, prev/next), clickable links, bookmarks tab in Pages sheet, select and copy text, remember last page. Editor Save asks "Update this PDF" or "Save as a new copy".
 - [x] **Batch 12** - Fill forms: AcroForm fields (text, checkbox, radio, dropdown), autofill details saved on the phone (Settings > Autofill details), flatten or keep editable, Update/New copy.
 - [x] **Batch 13** - Make Searchable tool (ML Kit OCR -> invisible text layer, `pdf/SearchablePdf.kt`), scans made searchable in the background (Settings > Searchable scans, on by default), JPG to PDF "Look" filter (Original/Enhanced/B&W, `pdf/Filters.kt`). ML Kit scanner already has its own filters.
-- [ ] **Batch 14** - Crop pages, page numbers on all pages in one go, print, better Word conversion (tables/images), "Replace original" for tool results.
+- [x] **Batch 14** - Crop pages (`ui/edit/CropEditor.kt`, `PdfTools.crop`), page numbers in one go with position/style/start/skip-cover, Print (system print dialog, `util/PrintPdf.kt`), Word to PDF tables + pictures and PDF to Word pictures (`pdf/WordTools.kt`), "Replace the original with this" on tool results (`JobResult.source`), shared `SaveChoiceSheet` + `Library.saveEdit`.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
 ## Log
@@ -82,7 +82,7 @@ Update it in the same commit as the work it describes.
 
 ## Next step
 
-Needed-8 plan (agreed 17 Oct): batches 11 and 12 done; next 13 (OCR text layer + scan filters), 14 (crop, page numbers in one go, print, Word tables/images, Replace original on tool results). Then Batch 10 hardening. Older notes below.
+Needed-8 plan (agreed 17 Oct): batches 11-14 done. Waiting for real-phone feedback, then Batch 10 hardening. Older notes below.
 
 Edit existing PDF text (major requirement), in 3 parts:
 - [x] Part 1: engine `pdf/TextEdit.kt` - `read(file, page)` returns text lines (`TextBlock`: position as page fractions, baseline, size, bold/italic, family) via a PDFTextStripper subclass; `applyTo(doc, page, ops)` covers each old line with its sampled background color and writes the new text on the same baseline with a matching standard-14 font (Roboto Type0 fallback for wider Unicode). `PageEdits.apply(..., textEdits)` runs it before ink/marks.

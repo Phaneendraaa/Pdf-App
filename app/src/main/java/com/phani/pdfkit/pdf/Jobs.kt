@@ -16,6 +16,7 @@ data class JobResult(
     val again: String? = null,         // route for "Create another"
     val againLabel: String = "Create another PDF",
     val detail: String? = null,        // replaces "size · N pages" when set (e.g. "8 images")
+    val source: File? = null,          // the PDF this was made from, so "Replace original" can overwrite it
 )
 
 /**

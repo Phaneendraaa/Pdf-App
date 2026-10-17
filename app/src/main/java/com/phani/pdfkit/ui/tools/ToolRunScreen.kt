@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "fillform", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -110,7 +110,11 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     var splitMode by remember { mutableStateOf("Extract pages") }
     var range by remember { mutableStateOf("") }
     var rotation by remember { mutableStateOf("Right") }
-    var numPos by remember { mutableStateOf("Bottom") }
+    var numH by remember { mutableStateOf("Center") }
+    var numV by remember { mutableStateOf("Bottom") }
+    var numFormat by remember { mutableStateOf("1") }
+    var numStart by remember { mutableStateOf("1") }
+    var numSkip by remember { mutableStateOf(false) }
     var wmText by remember { mutableStateOf("CONFIDENTIAL") }
     var wmStrength by remember { mutableStateOf("Medium") }
     val pageOrder = remember { mutableStateListOf<Int>() }
@@ -135,6 +139,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "merge" -> if (selected.size >= 2) "Merge ${selected.size} PDFs" else "Pick at least 2 PDFs"
         "edittext" -> "Open editor"
         "fillform" -> "Open form"
+        "crop" -> "Open crop"
         "searchable" -> "Make searchable"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
@@ -145,7 +150,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "split" -> if (splitMode == "Every page") "Split into pages" else "Extract pages"
         "rotate" -> "Rotate pages"
         "reorder" -> "Save page order"
-        "pagenum" -> "Add page numbers"
+        "pagenum" -> "Number all pages"
         "watermark" -> "Add watermark"
         else -> "Continue"
     }
@@ -261,7 +266,21 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         }
                         "pagenum" -> {
                             Label("Position")
-                            Segmented(listOf("Bottom", "Bottom right", "Top right"), numPos) { numPos = it }
+                            Segmented(listOf("Left", "Center", "Right"), numH) { numH = it }
+                            Spacer(Modifier.height(8.dp))
+                            Segmented(listOf("Top", "Bottom"), numV) { numV = it }
+                            Label("Style")
+                            Segmented(listOf("1", "Page 1", "1 of N"), numFormat) { numFormat = it }
+                            Label("Start at")
+                            TextField(numStart, "1", KeyboardType.Number) { numStart = it.filter(Char::isDigit).take(4) }
+                            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Skip the first page (cover)", fontSize = 14.5.sp, color = c.ink, modifier = Modifier.weight(1f))
+                                androidx.compose.material3.Switch(
+                                    numSkip, { numSkip = it },
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = c.blue, checkedThumbColor = Color.White, uncheckedTrackColor = c.line, uncheckedBorderColor = c.line, uncheckedThumbColor = Color.White),
+                                )
+                            }
+                            Hint("Every page gets its number in one go.")
                         }
                         "watermark" -> {
                             Label("Watermark text")
@@ -276,9 +295,10 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
                         "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. When you save, choose to update this PDF or keep a new copy. Works on text PDFs, not scans.")
                         "searchable" -> Hint("Reads the text in your scanned pages and hides a copy behind the picture, so you can search and copy it. English and other Latin-script text. Takes a few seconds per page.")
+                        "crop" -> Hint("Drag the corners or sides of the frame, then crop one page or all pages at once. What you cut off is hidden, not erased.")
                         "fillform" -> Hint("Tap a blue field to type, pick or tick it. Autofill uses details saved only on your phone. Works on fillable forms; for other PDFs you can type anywhere on the page.")
-                        "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over; tables, columns and images don't. Scanned PDFs need Text Recognition first.")
-                        "word2pdf" -> Hint("Converts text, headings, bold and page breaks. Tables and images aren't included yet.")
+                        "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over, and pictures are added after each page's text. Tables and columns don't carry over. Scanned PDFs need Make Searchable or Text Recognition first.")
+                        "word2pdf" -> Hint("Converts text, headings, bold, page breaks, simple tables and pictures. Fancy layouts, columns and text boxes are simplified.")
                     }
                 }
             }
@@ -289,6 +309,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                 val src = selected.toList()
                 if (key == "edittext") { onEdit(src.first().absolutePath); return@PrimaryButton }
                 if (key == "fillform") { onEdit("form:" + src.first().absolutePath); return@PrimaryButton }
+                if (key == "crop") { onEdit("crop:" + src.first().absolutePath); return@PrimaryButton }
                 val again = "tool/$key"
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library
@@ -306,7 +327,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                     "searchable" -> ActiveJob.set("Making searchable", "Reading your scan...", listOf("Opening PDF", "Recognizing text", "Saving PDF")) { r ->
                         val out = lib.newFile(base() + "_searchable")
                         val res = try { com.phani.pdfkit.pdf.SearchablePdf.make(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
-                        JobResult(out, res.pages, "Now searchable!", note = "${res.added} page${if (res.added == 1) "" else "s"} got a text layer", again = again, againLabel = "Make another PDF searchable")
+                        JobResult(out, res.pages, "Now searchable!", note = "${res.added} page${if (res.added == 1) "" else "s"} got a text layer", source = src.first(), again = again, againLabel = "Make another PDF searchable")
                     }
                     "merge" -> ActiveJob.set("Merging PDFs", "Merging your PDFs...", listOf("Reading files", "Combining pages", "Saving PDF")) { r ->
                         val out = lib.newFile(lib.stampedName("Merged"))
@@ -321,18 +342,18 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             val saved = 1f - res.after.toFloat() / res.before
                             val note = if (saved > 0.01f) "${Fmt.size(res.before)} → ${Fmt.size(res.after)} · ${String.format(Locale.US, "%.0f", saved * 100)}% smaller"
                             else "Already well optimized"
-                            JobResult(out, res.pages, "PDF compressed!", note = note, again = again, againLabel = "Compress another PDF")
+                            JobResult(out, res.pages, "PDF compressed!", note = note, source = src.first(), again = again, againLabel = "Compress another PDF")
                         }
                     }
                     "unlock" -> ActiveJob.set("Unlocking PDF", "Unlocking your PDF...", listOf("Checking password", "Removing protection", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_unlocked")
                         val n = try { PdfTools.unlock(src.first(), password, out) } catch (e: Exception) { out.delete(); throw e }
-                        JobResult(out, n, "PDF unlocked!", again = again, againLabel = "Unlock another PDF")
+                        JobResult(out, n, "PDF unlocked!", source = src.first(), again = again, againLabel = "Unlock another PDF")
                     }
                     "protect" -> ActiveJob.set("Protecting PDF", "Adding a password...", listOf("Reading PDF", "Encrypting", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_protected")
                         val n = PdfTools.protect(src.first(), password, out)
-                        JobResult(out, n, "PDF protected!", note = "Password required to open", again = again, againLabel = "Protect another PDF")
+                        JobResult(out, n, "PDF protected!", note = "Password required to open", source = src.first(), again = again, againLabel = "Protect another PDF")
                     }
                     "pdf2jpg" -> ActiveJob.set("PDF to JPG", "Converting pages...", listOf("Opening PDF", "Rendering pages", "Saving images")) { r ->
                         val b = base()
@@ -357,23 +378,23 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                     "rotate" -> ActiveJob.set("Rotating PDF", "Rotating pages...", listOf("Reading pages", "Rotating", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_rotated")
                         val deg = when (rotation) { "Left" -> -90; "180°" -> 180; else -> 90 }
-                        JobResult(out, PdfTools.rotate(src.first(), deg, out), "Pages rotated!", again = again, againLabel = "Rotate another PDF")
+                        JobResult(out, PdfTools.rotate(src.first(), deg, out), "Pages rotated!", source = src.first(), again = again, againLabel = "Rotate another PDF")
                     }
                     "reorder" -> {
                         val order = pageOrder.toList()
                         ActiveJob.set("Organizing pages", "Saving the new order...", listOf("Reading pages", "Arranging", "Saving PDF")) { r ->
                             r(0.3f); val out = lib.newFile(base() + "_organized")
-                            JobResult(out, PdfTools.reorder(src.first(), order, out), "Pages organized!", again = again, againLabel = "Organize another PDF")
+                            JobResult(out, PdfTools.reorder(src.first(), order, out), "Pages organized!", source = src.first(), again = again, againLabel = "Organize another PDF")
                         }
                     }
                     "pagenum" -> ActiveJob.set("Page numbers", "Numbering pages...", listOf("Reading pages", "Adding numbers", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_numbered")
-                        JobResult(out, PdfTools.pageNumbers(src.first(), numPos, 1, out), "Page numbers added!", again = again, againLabel = "Number another PDF")
+                        JobResult(out, PdfTools.pageNumbers(src.first(), numH, numV, numStart.toIntOrNull() ?: 1, numFormat, numSkip, out), "Page numbers added!", source = src.first(), again = again, againLabel = "Number another PDF")
                     }
                     "watermark" -> ActiveJob.set("Watermark", "Adding watermark...", listOf("Reading pages", "Stamping", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_watermarked")
                         val a = when (wmStrength) { "Light" -> 0.12f; "Strong" -> 0.35f; else -> 0.22f }
-                        JobResult(out, PdfTools.watermark(src.first(), wmText.trim(), a, out), "Watermark added!", again = again, againLabel = "Watermark another PDF")
+                        JobResult(out, PdfTools.watermark(src.first(), wmText.trim(), a, out), "Watermark added!", source = src.first(), again = again, againLabel = "Watermark another PDF")
                     }
                 }
                 onStart()

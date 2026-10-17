@@ -72,6 +72,7 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
     if (res == null) { LaunchedEffect(Unit) { onDone() }; return }
     var doc by remember { mutableStateOf(Graph.library.find(res.file.absolutePath)) }
     var renaming by remember { mutableStateOf(false) }
+    var replacing by remember { mutableStateOf(false) }
 
     val pop = remember { Animatable(0.3f) }
     val reveal = remember { Animatable(0f) }
@@ -132,6 +133,13 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     Action(PkIcons.Download, "Save", Modifier.weight(1f)) {
                         doc?.let { d -> scope.launch { Toaster.show(FileShare.saveToDownloads(ctx, d)?.let { "Saved to $it" } ?: "Couldn't save the file") } }
                     }
+                }
+                val src = res.source
+                if (src != null && src.exists() && src.absolutePath != res.file.absolutePath && src.absolutePath.startsWith(Graph.library.dir.absolutePath)) {
+                    Text(
+                        "Replace the original with this", color = c.blue, fontWeight = FontWeight.Medium, fontSize = 15.sp,
+                        modifier = Modifier.padding(top = 14.dp).clip(RoundedCornerShape(8.dp)).clickable { replacing = true }.padding(8.dp),
+                    )
                 }
                 Row(Modifier.padding(top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(PkIcons.Shield, null, tint = c.green, modifier = Modifier.size(15.dp))
@@ -208,6 +216,28 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { askRate = false; scope.launch { Graph.prefs.setRatePrompted() } }) { Text("Not now", color = c.ink2) }
             },
+        )
+    }
+
+    if (replacing) res.source?.let { src ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { replacing = false }, containerColor = c.card, shape = RoundedCornerShape(20.dp),
+            title = { Text("Replace the original?", color = c.ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold) },
+            text = { Text("${src.name} will be overwritten with this version, so you keep one file instead of two.", color = c.ink2, fontSize = 15.sp, lineHeight = 21.sp) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    replacing = false
+                    scope.launch {
+                        val done = Graph.library.replaceWith(src, res.file)
+                        if (done) {
+                            doc = Graph.library.find(src.absolutePath)
+                            ActiveJob.result = res.copy(file = src, source = null)
+                            Toaster.show("Replaced ${src.name}")
+                        } else Toaster.show("Couldn't replace the file")
+                    }
+                }) { Text("Replace", color = c.blue, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { replacing = false }) { Text("Cancel", color = c.ink2) } },
         )
     }
 

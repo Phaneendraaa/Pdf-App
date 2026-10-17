@@ -11,6 +11,7 @@ import com.tom_roush.pdfbox.multipdf.Splitter
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
 import com.tom_roush.pdfbox.pdmodel.PDResources
 import com.tom_roush.pdfbox.pdmodel.encryption.AccessPermission
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
@@ -191,23 +192,59 @@ object PdfTools {
         }
     }
 
-    fun pageNumbers(src: File, position: String, start: Int, out: File): Int = load(src).use { d ->
+    /**
+     * Numbers every page in one go. [h] is Left, Center or Right; [v] is Top or Bottom;
+     * [format] is "1", "Page 1" or "1 of N". With [skipFirst] a cover page gets no number and page 2 starts at [start].
+     */
+    fun pageNumbers(src: File, h: String, v: String, start: Int, format: String, skipFirst: Boolean, out: File): Int = load(src).use { d ->
         val font = PDType1Font.HELVETICA
         val size = 10f
+        val skip = if (skipFirst) 1 else 0
+        val last = start + (d.numberOfPages - skip) - 1
         d.pages.forEachIndexed { i, page ->
+            if (i < skip) return@forEachIndexed
             val box = page.mediaBox
-            val text = "${i + start}"
+            val n = start + (i - skip)
+            val text = when (format) { "Page 1" -> "Page $n"; "1 of N" -> "$n of $last"; else -> "$n" }
             val tw = font.getStringWidth(text) / 1000f * size
             val margin = 28f
-            val (x, y) = when (position) {
-                "Bottom right" -> box.lowerLeftX + box.width - margin - tw to box.lowerLeftY + margin - 6f
-                "Top right" -> box.lowerLeftX + box.width - margin - tw to box.lowerLeftY + box.height - margin
-                else -> box.lowerLeftX + (box.width - tw) / 2f to box.lowerLeftY + margin - 6f
+            val x = when (h) {
+                "Left" -> box.lowerLeftX + margin
+                "Right" -> box.lowerLeftX + box.width - margin - tw
+                else -> box.lowerLeftX + (box.width - tw) / 2f
             }
+            val y = if (v == "Top") box.lowerLeftY + box.height - margin else box.lowerLeftY + margin - 6f
             PDPageContentStream(d, page, PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
                 cs.beginText(); cs.setFont(font, size); cs.setNonStrokingColor(0.35f, 0.37f, 0.42f)
                 cs.newLineAtOffset(x, y); cs.showText(text); cs.endText()
             }
+        }
+        d.save(out); d.numberOfPages
+    }
+
+    /**
+     * Crops the listed pages to the kept area, given as fractions of the page as it is displayed
+     * (left, top, right, bottom; origin top-left). What was cropped away is hidden, not erased.
+     */
+    fun crop(src: File, pages: List<Int>, l: Float, t: Float, r: Float, b: Float, out: File): Int = load(src).use { d ->
+        for (i in pages) {
+            if (i !in 0 until d.numberOfPages) continue
+            val page = d.getPage(i)
+            val box = page.cropBox
+            val rot = ((page.rotation % 360) + 360) % 360
+            // Map the displayed rectangle back to the page's unrotated space.
+            val (x0, x1, y0, y1) = when (rot) {
+                90 -> listOf(t, b, 1f - r, 1f - l)
+                180 -> listOf(1f - r, 1f - l, 1f - b, 1f - t)
+                270 -> listOf(1f - b, 1f - t, l, r)
+                else -> listOf(l, r, t, b)
+            }
+            val rect = PDRectangle(
+                box.lowerLeftX + x0 * box.width, box.lowerLeftY + (1f - y1) * box.height,
+                (x1 - x0) * box.width, (y1 - y0) * box.height,
+            )
+            page.cropBox = rect
+            page.mediaBox = rect
         }
         d.save(out); d.numberOfPages
     }

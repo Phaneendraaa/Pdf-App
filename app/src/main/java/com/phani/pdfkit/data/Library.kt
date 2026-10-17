@@ -69,6 +69,18 @@ class Library(context: Context) {
         refreshBlocking(); ok
     }
 
+    /**
+     * Writes an edit with [write] and either swaps it over [target] (replace) or keeps it as a new copy
+     * named after [target] plus [suffix]. Returns the final file, or null if writing failed.
+     */
+    suspend fun saveEdit(target: File, replace: Boolean, suffix: String, write: (File) -> Unit): File? {
+        val base = target.name.replace(Regex("^in_\\d+_"), "").substringBeforeLast('.').removeSuffix(suffix)
+        val out = if (replace) tempFile() else newFile(base + suffix)
+        val ok = withContext(Dispatchers.IO) { runCatching { write(out) }.isSuccess }
+        if (!ok) { out.delete(); return null }
+        return if (replace) { if (replaceWith(target, out)) target else { out.delete(); null } } else { refresh(); out }
+    }
+
     fun stampedName(prefix: String): String =
         prefix + "_" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
 
