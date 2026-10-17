@@ -21,6 +21,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,8 +48,20 @@ fun Segmented(options: List<String>, selected: String, modifier: Modifier = Modi
                 Box(
                     Modifier.weight(1f).fillMaxHeight().clickable(remember { MutableInteractionSource() }, null) { onSelect(o) },
                     contentAlignment = Alignment.Center,
-                ) { Text(o, color = col, fontSize = 14.5.sp, maxLines = 1) }
+                ) { FitText(o, col, if (options.size >= 4) 13.5f else 14.5f) }
             }
         }
     }
+}
+
+/** One line of text that shrinks a little instead of being cut off when its slot is narrow. */
+@Composable
+private fun FitText(text: String, color: Color, startSp: Float) {
+    var size by remember(text) { mutableStateOf(startSp) }
+    Text(
+        text, color = color, fontSize = size.sp, maxLines = 1, softWrap = false,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        modifier = Modifier.padding(horizontal = 4.dp),
+        onTextLayout = { r -> if (r.hasVisualOverflow && size > 11f) size -= 0.5f },
+    )
 }

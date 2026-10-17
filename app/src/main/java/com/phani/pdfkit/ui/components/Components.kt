@@ -194,7 +194,7 @@ fun TopBar(
         if (onBack != null) IconBtn(back, size = 26.dp, label = "Back", onClick = onBack) else Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f).padding(start = 4.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = c.ink2)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         actions()
     }
@@ -219,7 +219,7 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
             .background(c.blue)
             .pressable(scaleTo = 0.98f, enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(text, color = Color.White, style = MaterialTheme.typography.labelLarge) }
+    ) { Text(text, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp)) }
 }
 
 @Composable

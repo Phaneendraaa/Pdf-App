@@ -94,6 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.phani.pdfkit.Graph
@@ -402,7 +403,6 @@ private fun Pages(
         Row(
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 18.dp).fillMaxWidth()
                 .shadow(18.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.card).padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
         ) {
             ToolBtn(PkIcons.Edit, "Edit", tool == "edit") { tool = toggle(tool, "edit") }
             ToolBtn(PkIcons.Highlight, "Highlight", tool == "highlight") { tool = toggle(tool, "highlight") }
@@ -546,15 +546,15 @@ private fun CopyTextSheet(doc: DocFile, page: Int, onDismiss: () -> Unit) {
 private fun toggle(cur: String?, t: String) = if (cur == t) null else t
 
 @Composable
-private fun ToolBtn(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
+private fun androidx.compose.foundation.layout.RowScope.ToolBtn(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
     val c = Pk.colors
     Column(
-        Modifier.clip(RoundedCornerShape(14.dp)).background(if (on) c.blueTint else Color.Transparent).clickable(onClick = onClick)
+        Modifier.weight(1f).padding(horizontal = 2.dp).clip(RoundedCornerShape(14.dp)).background(if (on) c.blueTint else Color.Transparent).clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, label, tint = if (on) c.blue else c.ink, modifier = Modifier.size(24.dp))
-        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = if (on) c.blue else c.ink, modifier = Modifier.padding(top = 4.dp))
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = if (on) c.blue else c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     }
 }
 

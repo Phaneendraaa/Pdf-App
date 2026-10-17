@@ -129,6 +129,8 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                             ) { onTool(k) }
                         }
+                        // Keep the grid even when the last row is short.
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -172,6 +174,6 @@ private fun QuickTile(icon: ImageVector, label: String, more: Boolean, modifier:
         Box(Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(16.dp)).background(c.surf), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = if (more) c.ink else c.blue, modifier = Modifier.size(28.dp))
         }
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = c.ink, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.padding(top = 8.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = c.ink, textAlign = TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
     }
 }

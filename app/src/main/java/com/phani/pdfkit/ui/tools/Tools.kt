@@ -167,7 +167,7 @@ private fun ToolRow(t: Tool, onClick: () -> Unit) {
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(t.name, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = c.ink)
+                Text(t.name, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (t.isNew) Pill("New", c.blue, c.blueTint)
             }
             Text(t.desc, style = MaterialTheme.typography.bodySmall, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)

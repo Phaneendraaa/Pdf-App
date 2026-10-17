@@ -129,7 +129,10 @@ fun PdfKitTheme(mode: ThemeMode = ThemeMode.Light, content: @Composable () -> Un
             surfaceContainerLow = pk.card, surfaceContainer = pk.card, surfaceContainerHigh = pk.card,
         )
     }
-    CompositionLocalProvider(LocalPk provides pk) {
+    // Very large system font sizes break rows and buttons; follow the setting up to 1.15x.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val capped = androidx.compose.ui.unit.Density(density.density, density.fontScale.coerceAtMost(1.15f))
+    CompositionLocalProvider(LocalPk provides pk, androidx.compose.ui.platform.LocalDensity provides capped) {
         MaterialTheme(colorScheme = scheme, typography = PkType, content = content)
     }
 }

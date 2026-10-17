@@ -112,7 +112,10 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     Modifier.padding(top = 16.dp).clip(RoundedCornerShape(8.dp)).clickable { renaming = true }.padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(doc?.name ?: res.file.name, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center)
+                    Text(
+                        doc?.name ?: res.file.name, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    )
                     Icon(PkIcons.Edit, "Rename", tint = c.ink3, modifier = Modifier.padding(start = 6.dp).size(16.dp))
                 }
                 val (renameHint, dismissRename) = com.phani.pdfkit.util.rememberHint("success_rename")
@@ -126,7 +129,14 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     res.detail ?: "${Fmt.size(doc?.bytes ?: res.file.length())} · ${res.pages} page${if (res.pages == 1) "" else "s"}",
                     fontSize = 15.sp, color = c.ink2, modifier = Modifier.padding(top = 6.dp),
                 )
-                if (res.note != null) Pill(res.note, c.green, c.greenTint, Modifier.padding(top = 12.dp))
+                if (res.note != null) {
+                    // Short notes are a pill; longer ones read better as a soft box.
+                    if (res.note.length <= 44) Pill(res.note, c.green, c.greenTint, Modifier.padding(top = 12.dp))
+                    else Text(
+                        res.note, color = c.ink, fontSize = 13.5.sp, lineHeight = 19.sp, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(c.greenTint).padding(horizontal = 14.dp, vertical = 9.dp),
+                    )
+                }
                 Row(Modifier.padding(top = 30.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Action(PkIcons.Eye, "Open", Modifier.weight(1f)) { doc?.let(onOpen) }
                     Action(PkIcons.Share, "Share", Modifier.weight(1f)) { doc?.let { FileShare.share(ctx, listOf(it)) } }
