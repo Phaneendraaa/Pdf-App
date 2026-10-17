@@ -37,6 +37,7 @@ import com.phani.pdfkit.pdf.Quality
 import com.phani.pdfkit.pdf.rememberScanner
 import com.phani.pdfkit.pdf.ScanDraft
 import com.phani.pdfkit.pdf.saveScan
+import com.phani.pdfkit.pdf.appendScan
 import com.phani.pdfkit.ui.scan.ScanReviewScreen
 import com.phani.pdfkit.ui.ocr.OcrScreen
 import com.phani.pdfkit.ui.components.ToastHost
@@ -81,12 +82,15 @@ fun PdfKitApp(settings: Settings) {
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val launchScanner = rememberScanner { uris ->
-        ScanDraft.clear(ctx); ScanDraft.add(uris)
+        val target = ScanDraft.appendTo
+        ScanDraft.clear(ctx); ScanDraft.appendTo = target; ScanDraft.add(uris)
         nav.navigate(Routes.SCAN) { launchSingleTop = true }
     }
     var cameraExplain by androidx.compose.runtime.remember { mutableStateOf(false) }
-    val startScan: () -> Unit = { if ("camera" in settings.hintsSeen) launchScanner() else cameraExplain = true }
-    val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
+    val beginScan: () -> Unit = { if ("camera" in settings.hintsSeen) launchScanner() else cameraExplain = true }
+    val startScan: () -> Unit = { ScanDraft.appendTo = null; beginScan() }
+    val startAppend: (java.io.File) -> Unit = { f -> ScanDraft.appendTo = f; beginScan() }
+    val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan, startAppend) }
 
     // Files shared or opened from other apps, and launcher shortcuts.
     val incoming by com.phani.pdfkit.util.IncomingIntents.pending.collectAsState()
@@ -165,7 +169,8 @@ fun PdfKitApp(settings: Settings) {
                     onDone = { nav.popBackStack(Routes.MAIN, inclusive = false) },
                     onOpen = openFile,
                     onAgain = { route ->
-                        if (route == "scan") { nav.popBackStack(Routes.MAIN, false); startScan() } else {
+                        if (route == "scan") { nav.popBackStack(Routes.MAIN, false); startScan() }
+                        else if (route.startsWith("scanadd:")) { nav.popBackStack(Routes.MAIN, false); startAppend(java.io.File(route.removePrefix("scanadd:"))) } else {
                             if (route == Routes.JPG) JpgDraft.clear()
                             nav.navigate(route) { popUpTo(Routes.MAIN) }
                         }
@@ -189,6 +194,7 @@ fun PdfKitApp(settings: Settings) {
                         when (key) {
                             "crop" -> nav.navigate(Routes.viewer(p, "crop")) { popUpTo(Routes.VIEWER) { inclusive = true } }
                             "jpg2pdf" -> { JpgDraft.clear(); JpgDraft.images.add(Uri.fromFile(java.io.File(p))); nav.navigate(Routes.JPG) }
+                            "scanadd" -> startAppend(java.io.File(p))
                             "ocrimage" -> { com.phani.pdfkit.ui.ocr.OcrInput.pending = Uri.fromFile(java.io.File(p)); nav.navigate(Routes.OCR) }
                             else -> nav.navigate(Routes.tool(key, p))
                         }
@@ -202,8 +208,13 @@ fun PdfKitApp(settings: Settings) {
                     onSave = {
                         val pages = ScanDraft.pages.toList()
                         val quality = Quality.of(settings.compression)
-                        ActiveJob.set("Saving scan", "Saving your scan...", listOf("Cleaning up pages", "Creating PDF", "Finalizing...")) { r ->
-                            saveScan(ctx, pages, quality, r)?.also { ScanDraft.clear(ctx) }
+                        val target = ScanDraft.appendTo
+                        ActiveJob.set(
+                            if (target != null) "Adding pages" else "Saving scan",
+                            if (target != null) "Adding pages to your PDF..." else "Saving your scan...",
+                            listOf("Cleaning up pages", if (target != null) "Joining with your PDF" else "Creating PDF", "Finalizing..."),
+                        ) { r ->
+                            (if (target != null) appendScan(ctx, target, pages, quality, r) else saveScan(ctx, pages, quality, r))?.also { ScanDraft.clear(ctx) }
                         }
                         nav.navigate(Routes.PROCESSING)
                     },
@@ -273,7 +284,8 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
     }
 }
 
-private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit) {
+private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit, startAppend: (java.io.File) -> Unit) {
+    if (key.startsWith("scanadd:")) { startAppend(java.io.File(key.removePrefix("scanadd:"))); return }
     if (key.startsWith("edit:")) { nav.navigate(Routes.viewer(key.removePrefix("edit:"), "edit")); return }
     if (key.startsWith("mergefiles:")) {
         val src = key.removePrefix("mergefiles:").split('\n').map { java.io.File(it) }.filter { it.exists() }

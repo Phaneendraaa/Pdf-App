@@ -148,6 +148,7 @@ fun MainScreen(
         val red = tint(0xFFEF3B3B, 0xFFFFEEEE, dark)
         PkSheet({ moreFor = null }, d.name) {
             SheetOption(PkIcons.Eye, blue.fg, blue.bg, "Open") { moreFor = null; onOpen(d) }
+            if (d.isPdf) SheetOption(PkIcons.Scan, blue.fg, blue.bg, "Scan more pages", "Add camera scans to this PDF") { moreFor = null; onTool("scanadd:" + d.path) }
             if (d.isPdf) SheetOption(PkIcons.Edit, blue.fg, blue.bg, "Edit text") { moreFor = null; onTool("edit:" + d.path) }
             SheetOption(PkIcons.Share, blue.fg, blue.bg, "Share") { moreFor = null; FileShare.share(ctx, listOf(d)) }
             SheetOption(PkIcons.Download, blue.fg, blue.bg, "Save to Downloads") {

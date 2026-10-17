@@ -155,6 +155,12 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                     Icon(PkIcons.Shield, null, tint = c.green, modifier = Modifier.size(15.dp))
                     Text("Created on your phone. Never uploaded.", fontSize = 13.sp, color = c.ink2, modifier = Modifier.padding(start = 6.dp))
                 }
+                if (res.again == "scan") {
+                    Text(
+                        "Add more pages to this scan", color = c.blue, fontWeight = FontWeight.Medium, fontSize = 15.sp,
+                        modifier = Modifier.padding(top = 14.dp).clip(RoundedCornerShape(8.dp)).clickable { onAgain("scanadd:" + res.file.absolutePath) }.padding(8.dp),
+                    )
+                }
                 if (res.again != null) {
                     Text(
                         res.againLabel, color = c.blue, fontWeight = FontWeight.Medium, fontSize = 15.sp,

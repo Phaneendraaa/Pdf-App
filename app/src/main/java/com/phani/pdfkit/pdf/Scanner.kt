@@ -70,11 +70,14 @@ object ScanDraft {
     val pages = mutableStateListOf<ScanPage>()
     /** Filter for new pages; follows the user's last choice. */
     var filter by mutableStateOf("Auto")
+    /** When set, the scanned pages are added to the end of this PDF instead of making a new one. */
+    var appendTo: File? by mutableStateOf(null)
     private var counter = 0L
     fun nextId() = ++counter
     fun add(uris: List<Uri>) { pages.addAll(uris.map { ScanPage(it, filter) }) }
     fun clear(context: Context) {
         pages.clear()
+        appendTo = null
         runCatching { File(context.cacheDir, "scan").deleteRecursively() }
     }
 }
@@ -126,4 +129,26 @@ object Ocr {
         }
 
     suspend fun read(context: Context, uri: Uri): String = client.process(InputImage.fromFilePath(context, uri)).await().text
+}
+
+/** Adds the reviewed pages to the end of [target]. Updates it in place (with a backup) when it lives in the library, else saves a copy. */
+suspend fun appendScan(context: Context, target: File, pages: List<ScanPage>, quality: Quality, report: (Float) -> Unit): JobResult? {
+    val lib = Graph.library
+    val tmp = File(context.cacheDir, "scan_add_${System.nanoTime()}.pdf")
+    try {
+        val n = ImagesToPdf.create(
+            context, pages.map { it.uri }, tmp, PageOptions(size = "Fit to image"), quality, { report(it * 0.6f) },
+            rotations = pages.associate { it.uri.toString() to it.turn },
+            filters = pages.associate { it.uri.toString() to it.filter },
+        )
+        if (n == 0) return null
+        val inLibrary = target.absolutePath.startsWith(lib.dir.absolutePath)
+        val saved = lib.saveEdit(target, inLibrary, "_plus") { out -> PdfTools.merge(listOf(target, tmp), out) { report(0.6f + it * 0.4f) } } ?: return null
+        if (Graph.prefs.settings.first().searchableScans) SearchablePdf.inBackground(saved.file)
+        return JobResult(
+            saved.file, PdfTools.pageCount(saved.file), "Pages added!",
+            note = "$n new page${if (n == 1) "" else "s"} added",
+            again = "scanadd:" + saved.file.absolutePath, againLabel = "Add more pages",
+        )
+    } finally { tmp.delete() }
 }

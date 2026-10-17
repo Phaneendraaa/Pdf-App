@@ -169,6 +169,7 @@ fun ViewerScreen(
             SheetOption(PkIcons.Share, blue.fg, blue.bg, "Share") { more = false; FileShare.share(ctx, listOf(doc)) }
             if (doc.isPdf && doc.path.startsWith(Graph.library.dir.absolutePath)) {
                 val teal = tint(0xFF0D9488, 0xFFE9F8F6, c.isDark)
+                SheetOption(PkIcons.Scan, teal.fg, teal.bg, "Scan more pages", "Add camera scans to the end of this PDF") { more = false; onTool("scanadd", doc.path) }
                 SheetOption(PkIcons.Reorder, teal.fg, teal.bg, "Organize pages", "Rotate, add blank, duplicate, delete") { more = false; onTool("reorder", doc.path) }
                 SheetOption(PkIcons.Hash, teal.fg, teal.bg, "Add page numbers") { more = false; onTool("pagenum", doc.path) }
                 SheetOption(PkIcons.Compress, teal.fg, teal.bg, "Compress", "Make it smaller than 200 KB, 500 KB...") { more = false; onTool("compress", doc.path) }

@@ -98,8 +98,8 @@ fun ScanReviewScreen(onDiscard: () -> Unit, onSave: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         TopBar(
-            "Review scan",
-            subtitle = "${pages.size} page${if (pages.size == 1) "" else "s"}",
+            if (ScanDraft.appendTo != null) "Add pages" else "Review scan",
+            subtitle = ScanDraft.appendTo?.let { "To ${it.name.removeSuffix(".pdf")}" } ?: "${pages.size} page${if (pages.size == 1) "" else "s"}",
             back = PkIcons.ArrowLeft, onBack = { leaving = true },
         ) {
             Row(
@@ -170,7 +170,8 @@ fun ScanReviewScreen(onDiscard: () -> Unit, onSave: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
             PrimaryButton(
-                "Save PDF · ${pages.size} page${if (pages.size == 1) "" else "s"}",
+                if (ScanDraft.appendTo != null) "Add ${pages.size} page${if (pages.size == 1) "" else "s"} to PDF"
+                else "Save PDF · ${pages.size} page${if (pages.size == 1) "" else "s"}",
                 enabled = pages.isNotEmpty(), onClick = onSave,
             )
         }
