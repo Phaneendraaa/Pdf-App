@@ -94,4 +94,10 @@ object PkIcons {
     val UserX = icon("userx", c(9f, 7f, 4f), "M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2M17 8l5 5M22 8l-5 5")
     val Play = icon("play", "M6 3.5v17l14-8.5z")
     val Sparkle = icon("sparkle", "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z", "M19 3v4M17 5h4")
+    val ChevronUp = icon("chevu", "M18 15l-6-6-6 6")
+    val ChevronDown = icon("chevd", "M6 9l6 6 6-6")
+    val Bookmark = icon("bookmark", "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z")
+    val Copy = icon("copy", rr(9f, 9f, 13f, 13f, 2f), "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1")
+    val Crop = icon("crop", "M6 2v14a2 2 0 0 0 2 2h14", "M18 22V8a2 2 0 0 0-2-2H2")
+    val Printer = icon("printer", "M6 9V2h12v7", "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2", rr(6f, 14f, 12f, 8f, 1f))
 }

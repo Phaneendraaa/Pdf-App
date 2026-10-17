@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.store by preferencesDataStore("pdfkit")
@@ -64,6 +65,19 @@ class Prefs(private val context: Context) {
     }
 
     suspend fun markHint(id: String) = context.store.edit { it[K.hints] = (it[K.hints] ?: emptySet()) + id }
+
+    private val lastPagesKey = stringPreferencesKey("last_pages")
+
+    /** Last page (0-based) the user was reading in [path], or 0. */
+    suspend fun lastPage(path: String): Int =
+        context.store.data.first()[lastPagesKey].orEmpty().lines().firstNotNullOfOrNull { l ->
+            if (l.substringBeforeLast('\t') == path) l.substringAfterLast('\t').toIntOrNull() else null
+        } ?: 0
+
+    suspend fun setLastPage(path: String, page: Int) = context.store.edit { p ->
+        val rest = p[lastPagesKey].orEmpty().lines().filter { it.isNotBlank() && it.substringBeforeLast('\t') != path }
+        p[lastPagesKey] = (rest + "$path\t$page").takeLast(80).joinToString("\n")
+    }
 
     suspend fun bumpSuccess() = context.store.edit { it[K.successCount] = (it[K.successCount] ?: 0) + 1 }
 }

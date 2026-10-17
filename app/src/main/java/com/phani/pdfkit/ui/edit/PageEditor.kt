@@ -106,6 +106,8 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     var padOpen by remember { mutableStateOf(false) }
     var textAt by remember { mutableStateOf<Offset?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var askSave by remember { mutableStateOf(false) }
+    val inLibrary = file.absolutePath.startsWith(Graph.library.dir.absolutePath)
     val history = remember { mutableStateListOf<String>() } // "s", "t", "g", "e<id>" for undo order
     val lineEdits = remember { androidx.compose.runtime.mutableStateMapOf<Int, LineEdit>() }
     var editing by remember { mutableStateOf<com.phani.pdfkit.pdf.TextBlock?>(null) }
@@ -127,6 +129,35 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     }
     val dirty = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty()
     BackHandler { onClose() }
+
+    /** [replace] overwrites this PDF with the edited one; otherwise the edit goes to a new copy. */
+    fun save(replace: Boolean) {
+        saving = true
+        val s = strokes.toList()
+        val t = texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) }
+        val g = sig?.let { listOf(ImageMark(it, sigX, sigY, sigW)) } ?: emptyList()
+        val blocksById = layout?.blocks?.associateBy { it.id }.orEmpty()
+        val te = lineEdits.mapNotNull { (id, e) ->
+            blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
+        }
+        scope.launch {
+            val lib = Graph.library
+            val out = if (replace) lib.tempFile() else {
+                val suffix = if (g.isNotEmpty()) "_signed" else "_edited"
+                lib.newFile(displayName(file).substringBeforeLast('.').removeSuffix("_edited").removeSuffix("_signed") + suffix)
+            }
+            val ok = withContext(Dispatchers.IO) { runCatching { PageEdits.apply(file, page, s, t, g, out, textEdits = te) }.isSuccess }
+            if (!ok) { out.delete(); saving = false; Toaster.show("Couldn't save the changes"); return@launch }
+            if (replace) {
+                val done = lib.replaceWith(file, out)
+                saving = false
+                if (done) { Toaster.show("Saved to ${file.name}"); onSaved(file) } else { out.delete(); Toaster.show("Couldn't update the file") }
+            } else {
+                lib.refresh(); saving = false
+                Toaster.show("Saved as ${out.name}"); onSaved(out)
+            }
+        }
+    }
 
     val bmp by produceState<Bitmap?>(null, page) { value = pdf.render(page, 1400) }
     val ratio = pdf.ratios.getOrElse(page) { 0.707f }
@@ -250,26 +281,19 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             }
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Cancel", color = c.ink2, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClose).padding(14.dp))
-                PrimaryButton(if (saving) "Saving..." else "Save copy", Modifier.weight(1f), enabled = dirty && !saving) {
-                    saving = true
-                    val s = strokes.toList()
-                    val t = texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) }
-                    val g = sig?.let { listOf(ImageMark(it, sigX, sigY, sigW)) } ?: emptyList()
-                    val blocksById = layout?.blocks?.associateBy { it.id }.orEmpty()
-                    val te = lineEdits.mapNotNull { (id, e) ->
-                        blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
-                    }
-                    scope.launch {
-                        val lib = Graph.library
-                        val suffix = if (g.isNotEmpty()) "_signed" else "_edited"
-                        val out = lib.newFile(displayName(file).substringBeforeLast('.').removeSuffix("_edited").removeSuffix("_signed") + suffix)
-                        val ok = withContext(Dispatchers.IO) { runCatching { PageEdits.apply(file, page, s, t, g, out, textEdits = te) }.isSuccess }
-                        saving = false
-                        if (ok) { lib.refresh(); Toaster.show("Saved as ${out.name}"); onSaved(out) }
-                        else { out.delete(); Toaster.show("Couldn't save the changes") }
-                    }
+                PrimaryButton(if (saving) "Saving..." else "Save", Modifier.weight(1f), enabled = dirty && !saving) {
+                    if (inLibrary) askSave = true else save(false)
                 }
             }
+        }
+    }
+
+    if (askSave) {
+        val blue = com.phani.pdfkit.ui.theme.tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
+        val green = com.phani.pdfkit.ui.theme.tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
+        com.phani.pdfkit.ui.components.PkSheet({ askSave = false }, "Save your changes") {
+            com.phani.pdfkit.ui.components.SheetOption(PkIcons.Check, blue.fg, blue.bg, "Update this PDF", "Replaces the current file, no extra copy") { askSave = false; save(true) }
+            com.phani.pdfkit.ui.components.SheetOption(PkIcons.Copy, green.fg, green.bg, "Save as a new copy", "Keeps the original untouched") { askSave = false; save(false) }
         }
     }
 

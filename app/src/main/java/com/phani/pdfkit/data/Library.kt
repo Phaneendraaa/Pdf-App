@@ -60,6 +60,15 @@ class Library(context: Context) {
         return f
     }
 
+    /** A hidden scratch file in the library folder, used to write an edit before it replaces the original. */
+    fun tempFile(): File = File(dir, ".tmp_${System.nanoTime()}.pdf")
+
+    /** Replaces [target] with the finished [temp] file. Returns false if it couldn't. */
+    suspend fun replaceWith(target: File, temp: File): Boolean = withContext(Dispatchers.IO) {
+        val ok = temp.renameTo(target) || runCatching { temp.copyTo(target, overwrite = true); temp.delete(); true }.getOrDefault(false)
+        refreshBlocking(); ok
+    }
+
     fun stampedName(prefix: String): String =
         prefix + "_" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
 
