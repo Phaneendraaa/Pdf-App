@@ -136,8 +136,8 @@ fun MainScreen(
         val rose = tint(0xFFE11D48, 0xFFFEEFF2, dark); val blue = tint(0xFF2463EB, 0xFFEEF3FF, dark); val green = tint(0xFF16A34A, 0xFFECF8F1, dark)
         SheetOption(PkIcons.Scan, rose.fg, rose.bg, "Scan document", "Use your camera") { createSheet = false; onTool("scan") }
         SheetOption(PkIcons.Image, blue.fg, blue.bg, "Images to PDF", "Pick photos from your gallery") { createSheet = false; onTool("jpg2pdf") }
-        SheetOption(PkIcons.FileUp, green.fg, green.bg, "Import PDF", "Open a file from your phone") {
-            createSheet = false; importer.launch(arrayOf("application/pdf", "image/*"))
+        SheetOption(PkIcons.FileUp, green.fg, green.bg, "Import a file", "PDF, Word file or image from your phone") {
+            createSheet = false; importer.launch(arrayOf("application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
         }
     }
 

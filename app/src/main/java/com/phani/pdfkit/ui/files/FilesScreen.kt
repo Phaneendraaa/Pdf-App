@@ -61,7 +61,7 @@ import com.phani.pdfkit.ui.theme.Pk
 import java.io.File
 import kotlinx.coroutines.launch
 
-private val FILTERS = listOf("all" to "All", "pdf" to "PDFs", "img" to "Images", "star" to "Starred")
+private val FILTERS = listOf("all" to "All", "pdf" to "PDFs", "doc" to "Word", "img" to "Images", "star" to "Starred")
 private val SORTS = listOf("date" to "Date modified", "name" to "Name", "size" to "Size")
 
 @Composable
@@ -89,6 +89,7 @@ fun FilesScreen(
             when (filter) {
                 "pdf" -> it.isPdf
                 "img" -> it.isImage
+                "doc" -> it.isDoc
                 "star" -> it.path in starred
                 else -> true
             }
@@ -177,6 +178,7 @@ fun FilesScreen(
             when (filter) {
                 "star" -> EmptyState(PkIcons.Star, "No starred files", "Tap the star on any file to keep it here.")
                 "img" -> EmptyState(PkIcons.Image, "No images yet", "Images you export from PDFs will show up here.")
+                "doc" -> EmptyState(PkIcons.Word, "No Word files yet", "Word files you convert or import will show up here.")
                 else -> EmptyState(PkIcons.FileUp, "No files yet", "Create a PDF from photos or import one to get started.")
             }
             return@Column

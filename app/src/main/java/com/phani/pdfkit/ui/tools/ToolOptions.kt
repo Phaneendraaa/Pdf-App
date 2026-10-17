@@ -245,3 +245,99 @@ private fun OptLabel(text: String) {
 private fun OptHint(text: String) {
     Text(text, fontSize = 13.sp, color = Pk.colors.ink2, lineHeight = 18.sp, modifier = Modifier.padding(top = 8.dp))
 }
+
+// ---------------- Margins ----------------
+
+class MarginState {
+    var same by mutableStateOf(true)
+    var all by mutableStateOf("10 mm")
+    var top by mutableStateOf("10")
+    var bottom by mutableStateOf("10")
+    var left by mutableStateOf("10")
+    var right by mutableStateOf("10")
+    var mode by mutableStateOf("Add space around")
+    var which by mutableStateOf("All pages")
+    var range by mutableStateOf("")
+
+    private fun mm(v: String) = (v.filter { it.isDigit() || it == '.' }.toFloatOrNull() ?: 0f).coerceIn(0f, 100f)
+    /** Top, bottom, left, right in points. */
+    fun sidesPt(): List<Float> {
+        val k = 72f / 25.4f
+        return if (same) List(4) { mm(all) * k } else listOf(mm(top), mm(bottom), mm(left), mm(right)).map { it * k }
+    }
+    val ready: Boolean get() = sidesPt().any { it > 0f } && (which == "All pages" || range.isNotBlank())
+
+    companion object { val PRESETS = listOf("5 mm", "10 mm", "15 mm", "20 mm", "25 mm") }
+}
+
+@Composable
+fun MarginOptions(st: MarginState, file: File?, pages: Int) {
+    if (file != null) MarginPreview(file, st)
+    SwitchRow("Same on all sides", null, st.same) { st.same = it }
+    if (st.same) {
+        OptLabel("Margin")
+        ChipRow(MarginState.PRESETS, st.all) { st.all = it }
+    } else {
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) { OptLabel("Top (mm)"); NumberField(st.top) { st.top = it } }
+            Column(Modifier.weight(1f)) { OptLabel("Bottom (mm)"); NumberField(st.bottom) { st.bottom = it } }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) { OptLabel("Left (mm)"); NumberField(st.left) { st.left = it } }
+            Column(Modifier.weight(1f)) { OptLabel("Right (mm)"); NumberField(st.right) { st.right = it } }
+        }
+    }
+    OptLabel("How")
+    Segmented(listOf("Add space around", "Keep page size"), st.mode) { st.mode = it }
+    OptLabel("Pages")
+    Segmented(listOf("All pages", "Choose pages"), st.which) { st.which = it }
+    if (st.which == "Choose pages") {
+        Spacer(Modifier.height(10.dp))
+        val c = Pk.colors
+        OutlinedTextField(
+            st.range, { st.range = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Pages, e.g. 1-3, 5", color = c.ink3) }, shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
+        )
+    }
+    OptHint(
+        (if (st.mode == "Add space around") "Pages get bigger by the margin, nothing on them moves." else "Pages stay the same size; what's on them shrinks a little to make room.") +
+            (if (pages > 0) " This file has $pages pages." else ""),
+    )
+}
+
+/** First page with the margins drawn in, so the result is clear before saving. */
+@Composable
+private fun MarginPreview(file: File, st: MarginState) {
+    val c = Pk.colors
+    val page by produceState<Pair<Bitmap?, Float>?>(null, file) {
+        value = withContext(Dispatchers.IO) { PdfThumbs.render(file, 0, 520) to PdfThumbs.pageWidthPt(file) }
+    }
+    val bmp = page?.first
+    val wPt = (page?.second ?: 595f).coerceAtLeast(100f)
+    val ratio = bmp?.let { it.width.toFloat() / it.height } ?: 0.707f
+    val hPt = wPt / ratio
+    val sides = st.sidesPt()
+    val t by animateFloatAsState(sides[0], label = "mt")
+    val b by animateFloatAsState(sides[1], label = "mb")
+    val l by animateFloatAsState(sides[2], label = "ml")
+    val r by animateFloatAsState(sides[3], label = "mr")
+    val grow = st.mode == "Add space around"
+    val outerW = if (grow) wPt + l + r else wPt
+    val outerH = if (grow) hPt + t + b else hPt
+    val s = if (grow) 1f else minOf((wPt - l - r) / wPt, (hPt - t - b) / hPt).coerceIn(0.1f, 1f)
+    val dx = if (grow) 0f else ((wPt - l - r) - wPt * s) / 2f
+    val dy = if (grow) 0f else ((hPt - t - b) - hPt * s) / 2f
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(
+            Modifier.width(170.dp).aspectRatio(outerW / outerH).shadow(8.dp, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp)).background(Color.White).border(1.dp, c.line, RoundedCornerShape(4.dp)),
+        ) {
+            val k = maxWidth / outerW
+            Box(
+                Modifier.padding(start = k * (l + dx), top = k * (t + dy)).width(k * wPt * s).aspectRatio(ratio)
+                    .border(1.dp, c.blue.copy(alpha = 0.5f)),
+            ) { bmp?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) } }
+        }
+    }
+}

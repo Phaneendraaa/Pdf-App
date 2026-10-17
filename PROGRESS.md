@@ -40,6 +40,8 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 16** - Editor redo (redo stack, cleared on new action via `record()`), tap page chip to go to a page, night reading (viewer menu, `Prefs.nightReading`, inverted pages), screen stays on in the viewer, show/hide password, PDF to JPG for chosen pages (`toImages(only=)`).
 - [x] **Batch 17** - Files: long-press or "Select" for multi-select (share, merge via `mergefiles:` key in `handleTool`, delete with undo, select all), Duplicate and Details in the file menu, rotate a photo in JPG to PDF (`JpgDraft.rotations`).
 - [x] **Batch 18** - Fast editing: one editor for all pages (arrows + page grid with edited marks, per-page `PageWork` state), "Save N pages" applies everything in one pass (`PageEdits.applyAll`). Save follows Settings > "When I save edits" (default Update PDF, no question) with a 6 s Undo toast (`Library.saveEdit` keeps `.undo_backup.pdf`, `undoSave`, `ui/edit/SaveFlow.kt` `rememberSave` + `announceSaved`); same for Fill form and Crop. Find and replace on all pages (`TextEdit.readAll`). Edit sheet: auto-focus, Done key or swiping away applies the change.
+- [x] **Batch 19** - Opens Word files in-app (`ui/viewer/DocViews.kt`: docx laid out to a cached PDF in cache/docview, read-only pages, Save as PDF / Open in Word) and images (Convert to PDF, Copy text via `OcrInput`). Open-with / share filters for .docx and images; importer accepts them; Files "Word" filter. Add Margins tool (`PdfTools.addMargins`: grow pages or keep size and shrink content; all or chosen pages; per-side mm; live preview).
+- [ ] **Batch 20** - Rebuilt PDF to Word (layout-aware).
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
 ## Log

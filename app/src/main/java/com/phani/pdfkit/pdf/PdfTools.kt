@@ -297,6 +297,46 @@ object PdfTools {
     }
 
     /**
+     * Adds margins (padding) to pages. Sizes are in points for the page as displayed.
+     * [keepSize] = false grows each page by the margins; true keeps the page size and shrinks the content to fit.
+     * [pages] null means every page.
+     */
+    fun addMargins(src: File, pages: List<Int>?, top: Float, bottom: Float, left: Float, right: Float, keepSize: Boolean, out: File): Int = load(src).use { d ->
+        val targets = pages ?: (0 until d.numberOfPages).toList()
+        for (i in targets) {
+            if (i !in 0 until d.numberOfPages) continue
+            val page = d.getPage(i)
+            val rot = ((page.rotation % 360) + 360) % 360
+            // Displayed sides -> sides of the unrotated page.
+            val (t, b, l, r) = when (rot) {
+                90 -> listOf(right, left, top, bottom)
+                180 -> listOf(bottom, top, right, left)
+                270 -> listOf(left, right, bottom, top)
+                else -> listOf(top, bottom, left, right)
+            }
+            val box = page.cropBox
+            val w = box.width; val h = box.height
+            if (!keepSize) {
+                val grown = PDRectangle(box.lowerLeftX - l, box.lowerLeftY - b, w + l + r, h + t + b)
+                page.mediaBox = grown
+                page.cropBox = grown
+            } else {
+                val s = minOf((w - l - r) / w, (h - t - b) / h).coerceIn(0.1f, 1f)
+                val dx = ((w - l - r) - w * s) / 2f
+                val dy = ((h - t - b) - h * s) / 2f
+                val tx = box.lowerLeftX + l + dx - s * box.lowerLeftX
+                val ty = box.lowerLeftY + b + dy - s * box.lowerLeftY
+                PDPageContentStream(d, page, PDPageContentStream.AppendMode.PREPEND, true).use { cs ->
+                    cs.saveGraphicsState()
+                    cs.transform(Matrix(s, 0f, 0f, s, tx, ty))
+                }
+                PDPageContentStream(d, page, PDPageContentStream.AppendMode.APPEND, true).use { cs -> cs.restoreGraphicsState() }
+            }
+        }
+        d.save(out); d.numberOfPages
+    }
+
+    /**
      * Crops the listed pages to the kept area, given as fractions of the page as it is displayed
      * (left, top, right, bottom; origin top-left). What was cropped away is hidden, not erased.
      */

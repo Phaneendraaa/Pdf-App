@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "blank", "delpages", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "margins", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "blank", "delpages", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -105,6 +105,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     // Options
     val comp = remember { CompressState() }
     val num = remember { NumberState() }
+    val marg = remember { MarginState() }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var imgQuality by remember { mutableStateOf("Normal") }
@@ -133,6 +134,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "watermark" -> first != null && wmText.isNotBlank()
         "reorder", "blank", "delpages" -> first != null && pageItems.order.isNotEmpty()
         "compress" -> first != null && comp.ready
+        "margins" -> first != null && marg.ready
         else -> first != null
     }
     val action = when (key) {
@@ -140,6 +142,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "edittext" -> "Open editor"
         "fillform" -> "Open form"
         "crop" -> "Open crop"
+        "margins" -> "Add margins"
         "searchable" -> "Make searchable"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
@@ -261,6 +264,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             Segmented(listOf("Left", "Right", "180°"), rotation) { rotation = it }
                         }
                         "pagenum" -> NumberOptions(num, first, pages)
+                        "margins" -> MarginOptions(marg, first, pages)
                         "watermark" -> {
                             Label("Watermark text")
                             TextField(wmText, "e.g. CONFIDENTIAL", KeyboardType.Text) { wmText = it }
@@ -375,6 +379,17 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         ActiveJob.set("Organizing pages", "Saving your pages...", listOf("Reading pages", "Arranging", "Saving PDF")) { r ->
                             r(0.3f); val out = lib.newFile(base() + "_organized")
                             JobResult(out, PdfTools.organize(src.first(), ops, out), "Pages saved!", source = src.first(), again = again, againLabel = "Organize another PDF")
+                        }
+                    }
+                    "margins" -> {
+                        val only = if (marg.which == "Choose pages") {
+                            try { PdfTools.parseRange(marg.range, pages) } catch (e: Exception) { Toaster.show(e.message ?: "Check the page numbers"); return@PrimaryButton }
+                        } else null
+                        val (mt, mb, ml, mr) = marg.sidesPt()
+                        val keep = marg.mode == "Keep page size"
+                        ActiveJob.set("Adding margins", "Adding margins...", listOf("Reading pages", "Adding space", "Saving PDF")) { r ->
+                            r(0.3f); val out = lib.newFile(base() + "_margins")
+                            JobResult(out, PdfTools.addMargins(src.first(), only, mt, mb, ml, mr, keep, out), "Margins added!", source = src.first(), again = again, againLabel = "Add margins to another PDF")
                         }
                     }
                     "pagenum" -> { val style = num.style(); ActiveJob.set("Page numbers", "Numbering pages...", listOf("Reading pages", "Adding numbers", "Saving PDF")) { r ->

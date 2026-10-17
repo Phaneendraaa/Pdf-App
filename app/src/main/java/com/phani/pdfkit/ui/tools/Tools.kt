@@ -83,6 +83,7 @@ object ToolCatalog {
         Tool("delpages", "Delete Pages", "Remove pages you don't need", PkIcons.Trash, TEAL, TEAL_T, "Organize"),
         Tool("edittext", "Edit PDF Text", "Change existing text in a PDF", PkIcons.Edit, BLUE, BLUE_T, "Edit", isNew = true),
         Tool("fillform", "Fill Form", "Fill in a fillable PDF form", PkIcons.Pencil, GREEN, GREEN_T, "Edit", isNew = true),
+        Tool("margins", "Add Margins", "Add white space or padding around pages", PkIcons.Pages, TEAL, TEAL_T, "Edit", isNew = true),
         Tool("crop", "Crop Pages", "Trim the edges of your pages", PkIcons.Crop, TEAL, TEAL_T, "Edit", isNew = true),
         Tool("text", "Add Text", "Add new text anywhere on a page", PkIcons.TextT, BLUE, BLUE_T, "Edit"),
         Tool("sign", "Sign PDF", "Draw or place your signature", PkIcons.Signature, VIOLET, VIOLET_T, "Edit"),

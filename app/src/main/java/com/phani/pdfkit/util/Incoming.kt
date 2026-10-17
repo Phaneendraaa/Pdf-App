@@ -21,7 +21,13 @@ object IncomingIntents {
         val type = intent.type.orEmpty()
         pending.value = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { Incoming.ViewPdf(it) }
-            Intent.ACTION_SEND -> stream(intent)?.let { if (type.startsWith("image/")) Incoming.SharedImages(listOf(it)) else Incoming.SharedPdfs(listOf(it)) }
+            Intent.ACTION_SEND -> stream(intent)?.let {
+                when {
+                    type.startsWith("image/") -> Incoming.SharedImages(listOf(it))
+                    type.contains("wordprocessingml") -> Incoming.ViewPdf(it)
+                    else -> Incoming.SharedPdfs(listOf(it))
+                }
+            }
             Intent.ACTION_SEND_MULTIPLE -> streams(intent).takeIf { it.isNotEmpty() }?.let {
                 if (type.startsWith("image/")) Incoming.SharedImages(it) else Incoming.SharedPdfs(it)
             }

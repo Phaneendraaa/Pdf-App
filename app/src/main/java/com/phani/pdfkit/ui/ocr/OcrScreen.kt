@@ -57,6 +57,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** An image another screen wants read as soon as this screen opens. */
+object OcrInput { var pending: Uri? = null }
+
 @Composable
 fun OcrScreen(onBack: () -> Unit) {
     val c = Pk.colors
@@ -73,6 +76,9 @@ fun OcrScreen(onBack: () -> Unit) {
         }
     }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        OcrInput.pending?.let { u -> OcrInput.pending = null; recognize { Ocr.read(ctx, u) } }
+    }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) recognize { Ocr.read(ctx, uri) }
     }

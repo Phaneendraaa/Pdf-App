@@ -21,7 +21,7 @@ data class DocFile(
     val file: File get() = File(path)
     val ext: String get() = name.substringAfterLast('.', "").lowercase()
     val isPdf: Boolean get() = ext == "pdf"
-    val isImage: Boolean get() = ext in setOf("jpg", "jpeg", "png", "webp")
+    val isImage: Boolean get() = ext in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif")
     val isDoc: Boolean get() = ext == "docx"
 }
 

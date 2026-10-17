@@ -73,7 +73,7 @@ fun PdfKitApp(settings: Settings) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
 
     val openFile: (DocFile) -> Unit = { d ->
-        if (d.isDoc) com.phani.pdfkit.util.FileShare.openExternal(ctx, d) else nav.navigate(Routes.viewer(d.path))
+        nav.navigate(Routes.viewer(d.path))
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val launchScanner = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
@@ -178,7 +178,14 @@ fun PdfKitApp(settings: Settings) {
                     onBack = { nav.popBackStack() },
                     onUnlock = { d -> nav.navigate(Routes.tool("unlock", d.path)) },
                     onReplace = { p -> nav.navigate(Routes.viewer(p)) { popUpTo(Routes.VIEWER) { inclusive = true } } },
-                    onTool = { key, p -> if (key == "crop") nav.navigate(Routes.viewer(p, "crop")) { popUpTo(Routes.VIEWER) { inclusive = true } } else nav.navigate(Routes.tool(key, p)) },
+                    onTool = { key, p ->
+                        when (key) {
+                            "crop" -> nav.navigate(Routes.viewer(p, "crop")) { popUpTo(Routes.VIEWER) { inclusive = true } }
+                            "jpg2pdf" -> { JpgDraft.clear(); JpgDraft.images.add(Uri.fromFile(java.io.File(p))); nav.navigate(Routes.JPG) }
+                            "ocrimage" -> { com.phani.pdfkit.ui.ocr.OcrInput.pending = Uri.fromFile(java.io.File(p)); nav.navigate(Routes.OCR) }
+                            else -> nav.navigate(Routes.tool(key, p))
+                        }
+                    },
                 )
             }
             composable(Routes.OCR) { OcrScreen(onBack = { nav.popBackStack() }) }

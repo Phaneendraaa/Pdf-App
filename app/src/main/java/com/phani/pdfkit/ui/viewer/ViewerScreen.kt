@@ -143,9 +143,17 @@ fun ViewerScreen(
         Box(Modifier.weight(1f).fillMaxWidth().background(if (c.isDark) Color(0xFF0A0B0E) else Color(0xFFF1F2F5))) {
             when {
                 doc == null -> EmptyState(PkIcons.Info, "File not found", "It may have been moved or deleted.")
-                doc.isImage -> ZoomBox(Modifier.fillMaxSize()) {
-                    AsyncImage(File(doc.path), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(12.dp))
+                doc.isImage -> Box(Modifier.fillMaxSize()) {
+                    ZoomBox(Modifier.fillMaxSize()) {
+                        AsyncImage(File(doc.path), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(12.dp))
+                    }
+                    ImageActions(
+                        Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(18.dp),
+                        onToPdf = { onTool("jpg2pdf", doc.path) },
+                        onOcr = { onTool("ocrimage", doc.path) },
+                    )
                 }
+                doc.isDoc -> DocxPages(doc, onReplace)
                 else -> PdfPages(doc, initialTool, searching, { searching = false }, { pageNow = it }, onUnlock, onReplace, night)
             }
         }
