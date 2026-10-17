@@ -1,6 +1,7 @@
 package com.phani.pdfkit.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -49,7 +50,10 @@ fun PkSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable C
         scrimColor = c.scrim,
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 16.dp).navigationBarsPadding()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(horizontal = 14.dp).padding(bottom = 16.dp).navigationBarsPadding(),
+        ) {
             if (title != null) Text(
                 title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 17.sp), color = c.ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),

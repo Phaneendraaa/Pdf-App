@@ -115,7 +115,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit) {
+fun ViewerScreen(
+    path: String, initialTool: String?, onBack: () -> Unit, onUnlock: (DocFile) -> Unit, onReplace: (String) -> Unit,
+    onTool: (String, String) -> Unit = { _, _ -> },
+) {
     val c = Pk.colors
     val ctx = LocalContext.current
     val doc = remember(path) { Graph.library.find(path) }
@@ -152,6 +155,13 @@ fun ViewerScreen(path: String, initialTool: String?, onBack: () -> Unit, onUnloc
         val blue = tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
         PkSheet({ more = false }, doc.name) {
             SheetOption(PkIcons.Share, blue.fg, blue.bg, "Share") { more = false; FileShare.share(ctx, listOf(doc)) }
+            if (doc.isPdf && doc.path.startsWith(Graph.library.dir.absolutePath)) {
+                val teal = tint(0xFF0D9488, 0xFFE9F8F6, c.isDark)
+                SheetOption(PkIcons.Reorder, teal.fg, teal.bg, "Organize pages", "Rotate, add blank, duplicate, delete") { more = false; onTool("reorder", doc.path) }
+                SheetOption(PkIcons.Hash, teal.fg, teal.bg, "Add page numbers") { more = false; onTool("pagenum", doc.path) }
+                SheetOption(PkIcons.Compress, teal.fg, teal.bg, "Compress", "Make it smaller than 200 KB, 500 KB...") { more = false; onTool("compress", doc.path) }
+                SheetOption(PkIcons.Crop, teal.fg, teal.bg, "Crop pages") { more = false; onTool("crop", doc.path) }
+            }
             if (doc.isPdf) SheetOption(PkIcons.Copy, blue.fg, blue.bg, "Select and copy text", "Text on the page you are reading") { more = false; copyOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Printer, blue.fg, blue.bg, "Print", "Pick pages in the print screen") { more = false; com.phani.pdfkit.util.PrintPdf.print(ctx, doc.file, doc.name) }
             SheetOption(PkIcons.ArrowRight, blue.fg, blue.bg, "Open with another app") { more = false; FileShare.openExternal(ctx, doc) }

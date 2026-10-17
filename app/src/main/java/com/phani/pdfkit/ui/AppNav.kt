@@ -178,6 +178,7 @@ fun PdfKitApp(settings: Settings) {
                     onBack = { nav.popBackStack() },
                     onUnlock = { d -> nav.navigate(Routes.tool("unlock", d.path)) },
                     onReplace = { p -> nav.navigate(Routes.viewer(p)) { popUpTo(Routes.VIEWER) { inclusive = true } } },
+                    onTool = { key, p -> if (key == "crop") nav.navigate(Routes.viewer(p, "crop")) { popUpTo(Routes.VIEWER) { inclusive = true } } else nav.navigate(Routes.tool(key, p)) },
                 )
             }
             composable(Routes.OCR) { OcrScreen(onBack = { nav.popBackStack() }) }

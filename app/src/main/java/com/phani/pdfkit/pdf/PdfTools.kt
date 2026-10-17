@@ -57,36 +57,73 @@ object PdfTools {
     }
 
     // ---------- Compress ----------
-    data class Compressed(val pages: Int, val before: Long, val after: Long)
+    data class Compressed(val pages: Int, val before: Long, val after: Long, val reached: Boolean = true)
 
-    suspend fun compress(src: File, out: File, quality: Quality, report: (Float) -> Unit): Compressed {
-        return load(src).use { doc ->
+    suspend fun compress(src: File, out: File, quality: Quality, report: (Float) -> Unit, gray: Boolean = false): Compressed {
+        val pages = compressRaw(src, out, quality, gray) { report(it * 0.9f) }
+        if (out.length() >= src.length() && !gray) src.copyTo(out, overwrite = true)
+        report(1f)
+        return Compressed(pages, src.length(), out.length())
+    }
+
+    /** From sharp to tiny. compressTo() looks for the sharpest step that fits the size limit. */
+    private val LADDER = listOf(
+        Quality(2400, 0.85f), Quality(2000, 0.75f), Quality(1700, 0.65f), Quality(1450, 0.55f), Quality(1250, 0.47f),
+        Quality(1080, 0.4f), Quality(940, 0.33f), Quality(820, 0.27f), Quality(700, 0.22f), Quality(580, 0.17f), Quality(460, 0.12f),
+    )
+
+    /**
+     * Compresses until the file is at most [target] bytes, keeping as much quality as possible.
+     * If even the strongest step is too big, returns the smallest result with reached = false.
+     */
+    suspend fun compressTo(src: File, out: File, target: Long, gray: Boolean, report: (Float) -> Unit): Compressed {
+        val before = src.length()
+        if (before <= target && !gray) {
+            src.copyTo(out, overwrite = true); report(1f)
+            return Compressed(pageCount(src), before, before, true)
+        }
+        var lo = 0; var hi = LADDER.lastIndex
+        var found = false; var pages = 0; var attempt = 0
+        val tmp = File(out.parentFile, ".try_${System.nanoTime()}.pdf")
+        try {
+            while (lo <= hi) {
+                val mid = (lo + hi) / 2
+                val step = attempt
+                pages = compressRaw(src, tmp, LADDER[mid], gray) { f -> report(((step + f) / 5f).coerceAtMost(0.95f)) }
+                attempt++
+                if (tmp.length() <= target) { tmp.copyTo(out, overwrite = true); found = true; hi = mid - 1 } else lo = mid + 1
+            }
+            if (!found) pages = compressRaw(src, out, LADDER.last(), gray) {}
+        } finally { tmp.delete() }
+        if (!found && out.length() > before) src.copyTo(out, overwrite = true)
+        report(1f)
+        return Compressed(pages, before, out.length(), found)
+    }
+
+    private suspend fun compressRaw(src: File, out: File, quality: Quality, gray: Boolean, report: (Float) -> Unit): Int =
+        load(src).use { doc ->
             val seen = HashSet<COSName>()
             doc.pages.forEachIndexed { i, page ->
                 coroutineContext.ensureActive()
-                page.resources?.let { recompress(doc, it, quality, seen, 0) }
-                report((i + 1f) / doc.numberOfPages * 0.9f)
+                page.resources?.let { recompress(doc, it, quality, gray, seen, 0) }
+                report((i + 1f) / doc.numberOfPages)
             }
             doc.save(out)
-            val pages = doc.numberOfPages
-            if (out.length() >= src.length()) src.copyTo(out, overwrite = true)
-            report(1f)
-            Compressed(pages, src.length(), out.length())
+            doc.numberOfPages
         }
-    }
 
-    private fun recompress(doc: PDDocument, res: PDResources, q: Quality, seen: HashSet<COSName>, depth: Int) {
+    private fun recompress(doc: PDDocument, res: PDResources, q: Quality, gray: Boolean, seen: HashSet<COSName>, depth: Int) {
         if (depth > 4) return
         for (name in res.xObjectNames.toList()) {
             val x = runCatching { res.getXObject(name) }.getOrNull() ?: continue
             when (x) {
-                is PDFormXObject -> x.resources?.let { recompress(doc, it, q, seen, depth + 1) }
+                is PDFormXObject -> x.resources?.let { recompress(doc, it, q, gray, seen, depth + 1) }
                 is PDImageXObject -> {
                     if (x.width * x.height < 160 * 160) continue
                     val bmp = runCatching { x.image }.getOrNull() ?: continue
                     val scale = minOf(1f, q.maxSide.toFloat() / maxOf(bmp.width, bmp.height))
                     val scaled = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true) else bmp
-                    val flat = flatten(scaled)
+                    val flat = flatten(scaled, gray)
                     val jpg = runCatching { JPEGFactory.createFromImage(doc, flat, q.jpeg) }.getOrNull()
                     if (jpg != null) res.put(name, jpg)
                     if (flat !== scaled) flat.recycle()
@@ -98,10 +135,14 @@ object PdfTools {
     }
 
     /** JPEG has no alpha: draw onto white so transparent areas don't turn black. */
-    private fun flatten(b: Bitmap): Bitmap {
-        if (!b.hasAlpha()) return b
+    private fun flatten(b: Bitmap, gray: Boolean = false): Bitmap {
+        if (!b.hasAlpha() && !gray) return b
         val out = Bitmap.createBitmap(b.width, b.height, Bitmap.Config.ARGB_8888)
-        val cv = android.graphics.Canvas(out); cv.drawColor(Color.WHITE); cv.drawBitmap(b, 0f, 0f, null)
+        val cv = android.graphics.Canvas(out); cv.drawColor(Color.WHITE)
+        val paint = if (gray) android.graphics.Paint().apply {
+            colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(0f) })
+        } else null
+        cv.drawBitmap(b, 0f, 0f, paint)
         return out
     }
 
@@ -192,34 +233,66 @@ object PdfTools {
         }
     }
 
-    /**
-     * Numbers every page in one go. [h] is Left, Center or Right; [v] is Top or Bottom;
-     * [format] is "1", "Page 1" or "1 of N". With [skipFirst] a cover page gets no number and page 2 starts at [start].
-     */
-    fun pageNumbers(src: File, h: String, v: String, start: Int, format: String, skipFirst: Boolean, out: File): Int = load(src).use { d ->
-        val font = PDType1Font.HELVETICA
-        val size = 10f
-        val skip = if (skipFirst) 1 else 0
-        val last = start + (d.numberOfPages - skip) - 1
+    /** How page numbers look. Positions: Left/Center/Right x Top/Bottom. */
+    data class NumberStyle(
+        val h: String = "Center", val v: String = "Bottom",
+        val format: String = "1",          // "1", "Page 1", "1 of N", "- 1 -"
+        val start: Int = 1,
+        val fromPage: Int = 1,             // first page (1-based) that gets a number
+        val margin: Float = 28f,           // distance from the page edge in points
+        val size: Float = 10f,
+        val color: Int = 0xFF5A5E6B.toInt(),
+        val bold: Boolean = false,
+    ) {
+        fun label(n: Int, last: Int) = when (format) { "Page 1" -> "Page $n"; "1 of N" -> "$n of $last"; "- 1 -" -> "- $n -"; else -> "$n" }
+    }
+
+    /** Numbers every page from [NumberStyle.fromPage] on, in one go. */
+    fun pageNumbers(src: File, st: NumberStyle, out: File): Int = load(src).use { d ->
+        val font = if (st.bold) PDType1Font.HELVETICA_BOLD else PDType1Font.HELVETICA
+        val skip = (st.fromPage - 1).coerceIn(0, d.numberOfPages)
+        val last = st.start + (d.numberOfPages - skip) - 1
+        val r = ((st.color shr 16) and 0xFF) / 255f; val g = ((st.color shr 8) and 0xFF) / 255f; val b = (st.color and 0xFF) / 255f
         d.pages.forEachIndexed { i, page ->
             if (i < skip) return@forEachIndexed
-            val box = page.mediaBox
-            val n = start + (i - skip)
-            val text = when (format) { "Page 1" -> "Page $n"; "1 of N" -> "$n of $last"; else -> "$n" }
-            val tw = font.getStringWidth(text) / 1000f * size
-            val margin = 28f
-            val x = when (h) {
-                "Left" -> box.lowerLeftX + margin
-                "Right" -> box.lowerLeftX + box.width - margin - tw
+            val box = page.cropBox
+            val text = st.label(st.start + (i - skip), last)
+            val tw = font.getStringWidth(text) / 1000f * st.size
+            val m = st.margin
+            val x = when (st.h) {
+                "Left" -> box.lowerLeftX + m
+                "Right" -> box.lowerLeftX + box.width - m - tw
                 else -> box.lowerLeftX + (box.width - tw) / 2f
             }
-            val y = if (v == "Top") box.lowerLeftY + box.height - margin else box.lowerLeftY + margin - 6f
+            val y = if (st.v == "Top") box.lowerLeftY + box.height - m - st.size * 0.75f else box.lowerLeftY + m
             PDPageContentStream(d, page, PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
-                cs.beginText(); cs.setFont(font, size); cs.setNonStrokingColor(0.35f, 0.37f, 0.42f)
+                cs.beginText(); cs.setFont(font, st.size); cs.setNonStrokingColor(r, g, b)
                 cs.newLineAtOffset(x, y); cs.showText(text); cs.endText()
             }
         }
         d.save(out); d.numberOfPages
+    }
+
+    /** One page in an organized PDF: [source] page index (or -1 for a new blank page) and extra rotation. */
+    data class PageOp(val source: Int, val rotate: Int = 0)
+
+    /** Builds a new PDF from [ops]: reorder, delete (leave out), duplicate (repeat), rotate, and blank pages. */
+    fun organize(src: File, ops: List<PageOp>, out: File): Int = load(src).use { d ->
+        if (ops.isEmpty()) throw ToolError("Keep at least one page")
+        PDDocument().use { n ->
+            var lastBox: PDRectangle = PDRectangle.A4
+            ops.forEach { op ->
+                if (op.source in 0 until d.numberOfPages) {
+                    val orig = d.getPage(op.source)
+                    val p = n.importPage(orig)
+                    p.rotation = (((orig.rotation + op.rotate) % 360) + 360) % 360
+                    lastBox = orig.mediaBox
+                } else {
+                    n.addPage(PDPage(PDRectangle(lastBox.width, lastBox.height)))
+                }
+            }
+            n.save(out); n.numberOfPages
+        }
     }
 
     /**

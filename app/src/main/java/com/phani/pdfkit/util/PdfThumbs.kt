@@ -37,6 +37,11 @@ object PdfThumbs {
         }
     }.getOrNull()
 
+    /** Width of the first page in points (1/72 inch), as shown. */
+    fun pageWidthPt(file: File): Float = runCatching {
+        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> PdfRenderer(fd).use { r -> r.openPage(0).use { it.width.toFloat() } } }
+    }.getOrDefault(595f)
+
     fun pageCount(file: File): Int = runCatching {
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> PdfRenderer(fd).use { it.pageCount } }
     }.getOrDefault(0)

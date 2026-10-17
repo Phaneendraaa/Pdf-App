@@ -157,7 +157,12 @@ fun EditLineSheet(
                 fontStyle = if (block.italic) FontStyle.Italic else FontStyle.Normal, fontSize = 17.sp, color = Color(color),
             ),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
+            // The field looks like the page itself (its own paper color), so the text color always reads
+            // the way it will in the PDF, including in dark mode.
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue,
+                focusedContainerColor = Color(sampled.first), unfocusedContainerColor = Color(sampled.first),
+            ),
         )
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Size", fontSize = 14.sp, color = c.ink2, modifier = Modifier.width(44.dp))

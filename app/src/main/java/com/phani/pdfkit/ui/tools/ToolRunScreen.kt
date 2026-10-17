@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "blank", "delpages", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -103,27 +103,24 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     }
 
     // Options
-    var level by remember { mutableStateOf("Balanced") }
+    val comp = remember { CompressState() }
+    val num = remember { NumberState() }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var imgQuality by remember { mutableStateOf("Normal") }
     var splitMode by remember { mutableStateOf("Extract pages") }
     var range by remember { mutableStateOf("") }
     var rotation by remember { mutableStateOf("Right") }
-    var numH by remember { mutableStateOf("Center") }
-    var numV by remember { mutableStateOf("Bottom") }
-    var numFormat by remember { mutableStateOf("1") }
-    var numStart by remember { mutableStateOf("1") }
-    var numSkip by remember { mutableStateOf(false) }
     var wmText by remember { mutableStateOf("CONFIDENTIAL") }
     var wmStrength by remember { mutableStateOf("Medium") }
-    val pageOrder = remember { mutableStateListOf<Int>() }
+    val pageItems = remember { PageItems() }
 
     val first = selected.firstOrNull()
     var pages by remember { mutableStateOf(0) }
     LaunchedEffect(first) {
         pages = if (wordIn) 0 else first?.let { f -> withContext(Dispatchers.IO) { com.phani.pdfkit.util.PdfThumbs.pageCount(f) } } ?: 0
-        pageOrder.clear(); pageOrder.addAll(0 until pages)
+        pageItems.reset(pages)
+        if (key == "blank" && pages > 0) pageItems.addBlank(null)
     }
 
     val ready = when (key) {
@@ -132,7 +129,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "protect" -> first != null && password.length >= 4 && password == confirm
         "split" -> first != null && (splitMode == "Every page" || range.isNotBlank())
         "watermark" -> first != null && wmText.isNotBlank()
-        "reorder" -> first != null && pageOrder.isNotEmpty()
+        "reorder", "blank", "delpages" -> first != null && pageItems.order.isNotEmpty()
+        "compress" -> first != null && comp.ready
         else -> first != null
     }
     val action = when (key) {
@@ -143,13 +141,13 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "searchable" -> "Make searchable"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
-        "compress" -> "Compress PDF"
+        "compress" -> comp.targetBytes()?.let { "Compress to under ${Fmt.size(it)}" } ?: "Compress PDF"
         "unlock" -> "Unlock PDF"
         "protect" -> "Protect PDF"
         "pdf2jpg" -> "Convert to JPG"
         "split" -> if (splitMode == "Every page") "Split into pages" else "Extract pages"
         "rotate" -> "Rotate pages"
-        "reorder" -> "Save page order"
+        "reorder", "blank", "delpages" -> "Save pages"
         "pagenum" -> "Number all pages"
         "watermark" -> "Add watermark"
         else -> "Continue"
@@ -222,17 +220,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
             AnimatedVisibility(first != null) {
                 Column(Modifier.padding(top = 18.dp)) {
                     when (key) {
-                        "compress" -> {
-                            Label("Compression level")
-                            Segmented(listOf("Strong", "Balanced", "Light"), level) { level = it }
-                            Hint(
-                                when (level) {
-                                    "Strong" -> "Smallest file. Images get softer."
-                                    "Light" -> "Keeps images sharp. Smaller savings."
-                                    else -> "Good balance of size and quality."
-                                } + (first?.let { " Now ${Fmt.size(it.length())}." } ?: ""),
-                            )
-                        }
+                        "compress" -> CompressOptions(comp, first)
                         "unlock" -> {
                             Label("Password")
                             PasswordField(password, "Enter the PDF's password") { password = it }
@@ -264,33 +252,16 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             Label("Rotate all pages")
                             Segmented(listOf("Left", "Right", "180°"), rotation) { rotation = it }
                         }
-                        "pagenum" -> {
-                            Label("Position")
-                            Segmented(listOf("Left", "Center", "Right"), numH) { numH = it }
-                            Spacer(Modifier.height(8.dp))
-                            Segmented(listOf("Top", "Bottom"), numV) { numV = it }
-                            Label("Style")
-                            Segmented(listOf("1", "Page 1", "1 of N"), numFormat) { numFormat = it }
-                            Label("Start at")
-                            TextField(numStart, "1", KeyboardType.Number) { numStart = it.filter(Char::isDigit).take(4) }
-                            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Skip the first page (cover)", fontSize = 14.5.sp, color = c.ink, modifier = Modifier.weight(1f))
-                                androidx.compose.material3.Switch(
-                                    numSkip, { numSkip = it },
-                                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = c.blue, checkedThumbColor = Color.White, uncheckedTrackColor = c.line, uncheckedBorderColor = c.line, uncheckedThumbColor = Color.White),
-                                )
-                            }
-                            Hint("Every page gets its number in one go.")
-                        }
+                        "pagenum" -> NumberOptions(num, first, pages)
                         "watermark" -> {
                             Label("Watermark text")
                             TextField(wmText, "e.g. CONFIDENTIAL", KeyboardType.Text) { wmText = it }
                             Label("Strength")
                             Segmented(listOf("Light", "Medium", "Strong"), wmStrength) { wmStrength = it }
                         }
-                        "reorder" -> {
-                            Label("Drag to reorder. Tap × to remove a page.")
-                            if (first != null) PageOrganizer(first, pageOrder)
+                        "reorder", "blank", "delpages" -> {
+                            Label("Tap a page to rotate, duplicate, add a blank page or delete. Long-press and drag to move it.")
+                            if (first != null) PageOrganizer(first, pageItems)
                         }
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
                         "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. When you save, choose to update this PDF or keep a new copy. Works on text PDFs, not scans.")
@@ -335,14 +306,21 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         JobResult(out, n, "PDFs merged!", again = again, againLabel = "Merge more PDFs")
                     }
                     "compress" -> {
-                        val q = when (level) { "Strong" -> Quality(1200, 0.5f); "Light" -> Quality(2400, 0.85f); else -> Quality(1800, 0.7f) }
-                        ActiveJob.set("Compressing PDF", "Compressing your PDF...", listOf("Reading pages", "Optimizing images", "Saving PDF")) { r ->
+                        val q = when (comp.level) { "Strong" -> Quality(1200, 0.5f); "Light" -> Quality(2400, 0.85f); else -> Quality(1800, 0.7f) }
+                        val target = comp.targetBytes()
+                        val gray = comp.gray
+                        ActiveJob.set("Compressing PDF", "Compressing your PDF...", listOf("Reading pages", "Finding the best size", "Saving PDF")) { r ->
                             val out = lib.newFile(base() + "_compressed")
-                            val res = PdfTools.compress(src.first(), out, q, r)
+                            val res = if (target != null) PdfTools.compressTo(src.first(), out, target, gray, r) else PdfTools.compress(src.first(), out, q, r, gray)
                             val saved = 1f - res.after.toFloat() / res.before
-                            val note = if (saved > 0.01f) "${Fmt.size(res.before)} → ${Fmt.size(res.after)} · ${String.format(Locale.US, "%.0f", saved * 100)}% smaller"
-                            else "Already well optimized"
-                            JobResult(out, res.pages, "PDF compressed!", note = note, source = src.first(), again = again, againLabel = "Compress another PDF")
+                            val pct = String.format(Locale.US, "%.0f", saved * 100)
+                            val note = when {
+                                target != null && res.reached -> "${Fmt.size(res.before)} → ${Fmt.size(res.after)} · under ${Fmt.size(target)}"
+                                target != null -> "Smallest possible: ${Fmt.size(res.after)} (you wanted ${Fmt.size(target)}). Try Black and white, or split the PDF."
+                                saved > 0.01f -> "${Fmt.size(res.before)} → ${Fmt.size(res.after)} · $pct% smaller"
+                                else -> "Already well optimized"
+                            }
+                            JobResult(out, res.pages, if (target == null || res.reached) "PDF compressed!" else "Compressed as far as possible", note = note, source = src.first(), again = again, againLabel = "Compress another PDF")
                         }
                     }
                     "unlock" -> ActiveJob.set("Unlocking PDF", "Unlocking your PDF...", listOf("Checking password", "Removing protection", "Saving PDF")) { r ->
@@ -380,17 +358,17 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         val deg = when (rotation) { "Left" -> -90; "180°" -> 180; else -> 90 }
                         JobResult(out, PdfTools.rotate(src.first(), deg, out), "Pages rotated!", source = src.first(), again = again, againLabel = "Rotate another PDF")
                     }
-                    "reorder" -> {
-                        val order = pageOrder.toList()
-                        ActiveJob.set("Organizing pages", "Saving the new order...", listOf("Reading pages", "Arranging", "Saving PDF")) { r ->
+                    "reorder", "blank", "delpages" -> {
+                        val ops = pageItems.ops()
+                        ActiveJob.set("Organizing pages", "Saving your pages...", listOf("Reading pages", "Arranging", "Saving PDF")) { r ->
                             r(0.3f); val out = lib.newFile(base() + "_organized")
-                            JobResult(out, PdfTools.reorder(src.first(), order, out), "Pages organized!", source = src.first(), again = again, againLabel = "Organize another PDF")
+                            JobResult(out, PdfTools.organize(src.first(), ops, out), "Pages saved!", source = src.first(), again = again, againLabel = "Organize another PDF")
                         }
                     }
-                    "pagenum" -> ActiveJob.set("Page numbers", "Numbering pages...", listOf("Reading pages", "Adding numbers", "Saving PDF")) { r ->
+                    "pagenum" -> { val style = num.style(); ActiveJob.set("Page numbers", "Numbering pages...", listOf("Reading pages", "Adding numbers", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_numbered")
-                        JobResult(out, PdfTools.pageNumbers(src.first(), numH, numV, numStart.toIntOrNull() ?: 1, numFormat, numSkip, out), "Page numbers added!", source = src.first(), again = again, againLabel = "Number another PDF")
-                    }
+                        JobResult(out, PdfTools.pageNumbers(src.first(), style, out), "Page numbers added!", source = src.first(), again = again, againLabel = "Number another PDF")
+                    } }
                     "watermark" -> ActiveJob.set("Watermark", "Adding watermark...", listOf("Reading pages", "Stamping", "Saving PDF")) { r ->
                         r(0.3f); val out = lib.newFile(base() + "_watermarked")
                         val a = when (wmStrength) { "Light" -> 0.12f; "Strong" -> 0.35f; else -> 0.22f }
