@@ -34,6 +34,7 @@ object ImagesToPdf {
         quality: Quality,
         progress: (Float) -> Unit,
         rotations: Map<String, Int> = emptyMap(),
+        filters: Map<String, String> = emptyMap(),
     ): Int {
         val margin = when (opts.margin) { "Small" -> 18f; "Large" -> 40f; else -> 0f }
         var pages = 0
@@ -41,7 +42,7 @@ object ImagesToPdf {
             uris.forEachIndexed { i, uri ->
                 coroutineContext.ensureActive()
                 val raw = Bitmaps.decode(context, uri, quality.maxSide) ?: return@forEachIndexed
-                val filtered = Filters.apply(raw, opts.filter).also { if (it !== raw) raw.recycle() }
+                val filtered = Filters.apply(raw, filters[uri.toString()] ?: opts.filter).also { if (it !== raw) raw.recycle() }
                 val turn = ((rotations[uri.toString()] ?: 0) % 360 + 360) % 360
                 val bmp = if (turn == 0) filtered else android.graphics.Bitmap.createBitmap(
                     filtered, 0, 0, filtered.width, filtered.height, android.graphics.Matrix().apply { postRotate(turn.toFloat()) }, true,

@@ -35,6 +35,9 @@ import com.phani.pdfkit.pdf.JobResult
 import com.phani.pdfkit.pdf.JpgDraft
 import com.phani.pdfkit.pdf.Quality
 import com.phani.pdfkit.pdf.rememberScanner
+import com.phani.pdfkit.pdf.ScanDraft
+import com.phani.pdfkit.pdf.saveScan
+import com.phani.pdfkit.ui.scan.ScanReviewScreen
 import com.phani.pdfkit.ui.ocr.OcrScreen
 import com.phani.pdfkit.ui.components.ToastHost
 import com.phani.pdfkit.ui.components.Toaster
@@ -56,6 +59,7 @@ object Routes {
     const val PROCESSING = "processing"
     const val SUCCESS = "success"
     const val OCR = "ocr"
+    const val SCAN = "scanreview"
     const val VIEWER = "viewer?path={path}&tool={tool}"
     const val TOOL = "tool/{key}?path={path}"
     fun tool(key: String, path: String? = null) = "tool/$key" + (path?.let { "?path=${Uri.encode(it)}" } ?: "")
@@ -76,7 +80,10 @@ fun PdfKitApp(settings: Settings) {
         nav.navigate(Routes.viewer(d.path))
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val launchScanner = rememberScanner { job -> ActiveJob.result = job; nav.navigate(Routes.SUCCESS) { popUpTo(Routes.MAIN) } }
+    val launchScanner = rememberScanner { uris ->
+        ScanDraft.clear(ctx); ScanDraft.add(uris)
+        nav.navigate(Routes.SCAN) { launchSingleTop = true }
+    }
     var cameraExplain by androidx.compose.runtime.remember { mutableStateOf(false) }
     val startScan: () -> Unit = { if ("camera" in settings.hintsSeen) launchScanner() else cameraExplain = true }
     val onTool: (String) -> Unit = { key -> handleTool(key, nav, files, startScan) }
@@ -189,6 +196,19 @@ fun PdfKitApp(settings: Settings) {
                 )
             }
             composable(Routes.OCR) { OcrScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.SCAN) {
+                ScanReviewScreen(
+                    onDiscard = { ScanDraft.clear(ctx); nav.popBackStack() },
+                    onSave = {
+                        val pages = ScanDraft.pages.toList()
+                        val quality = Quality.of(settings.compression)
+                        ActiveJob.set("Saving scan", "Saving your scan...", listOf("Cleaning up pages", "Creating PDF", "Finalizing...")) { r ->
+                            saveScan(ctx, pages, quality, r)?.also { ScanDraft.clear(ctx) }
+                        }
+                        nav.navigate(Routes.PROCESSING)
+                    },
+                )
+            }
             composable(
                 Routes.TOOL,
                 arguments = listOf(

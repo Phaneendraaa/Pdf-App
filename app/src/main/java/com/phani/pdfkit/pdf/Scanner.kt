@@ -10,6 +10,10 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.google.mlkit.vision.common.InputImage
@@ -25,14 +29,18 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.io.File
 
-/** ML Kit document scanner. Runs through Google Play services, so it adds almost nothing to the APK. */
+/**
+ * ML Kit document scanner. Google's camera screen finds the page edges and lets the user crop,
+ * rotate and reorder; our review screen then applies the filters and builds the PDF.
+ */
 object DocScanner {
     private val options = GmsDocumentScannerOptions.Builder()
         .setGalleryImportAllowed(true)
-        .setPageLimit(40)
-        .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_PDF)
-        .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+        .setPageLimit(50)
+        .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+        .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_BASE)
         .build()
 
     fun start(activity: Activity, launcher: ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>) {
@@ -41,36 +49,66 @@ object DocScanner {
             .addOnFailureListener { Toaster.show("Scanner isn't available on this phone right now") }
     }
 
-    /** Copies the scanned PDF into the library. */
-    suspend fun save(context: Context, uri: Uri, pages: Int): JobResult? = withContext(Dispatchers.IO) {
-        runCatching {
-            val lib = Graph.library
-            val out = lib.newFile(lib.stampedName("Scan"))
-            context.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { i.copyTo(it) } }
-            lib.refreshBlocking()
-            JobResult(out, pages, "Scan saved!", again = "scan", againLabel = "Scan another document")
-        }.getOrNull()
+    /** Copies the scanned pages into our own cache so they stay while the user reviews them. */
+    suspend fun keep(context: Context, uris: List<Uri>): List<Uri> = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "scan").apply { mkdirs() }
+        uris.mapIndexedNotNull { i, u ->
+            runCatching {
+                val f = File(dir, "p${System.currentTimeMillis()}_$i.jpg")
+                context.contentResolver.openInputStream(u)?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+                Uri.fromFile(f)
+            }.getOrNull()
+        }
     }
 }
 
-/** Returns a function that opens the scanner; [onSaved] gets the result after the PDF is in the library. */
+/** One scanned page waiting in the review screen. */
+data class ScanPage(val uri: Uri, val filter: String, val turn: Int = 0, val id: Long = ScanDraft.nextId())
+
+/** The scan being reviewed. */
+object ScanDraft {
+    val pages = mutableStateListOf<ScanPage>()
+    /** Filter for new pages; follows the user's last choice. */
+    var filter by mutableStateOf("Auto")
+    private var counter = 0L
+    fun nextId() = ++counter
+    fun add(uris: List<Uri>) { pages.addAll(uris.map { ScanPage(it, filter) }) }
+    fun clear(context: Context) {
+        pages.clear()
+        runCatching { File(context.cacheDir, "scan").deleteRecursively() }
+    }
+}
+
+/** Returns a function that opens the scanner; [onPages] gets the scanned page images. */
 @Composable
-fun rememberScanner(onSaved: (JobResult) -> Unit): () -> Unit {
+fun rememberScanner(onPages: (List<Uri>) -> Unit): () -> Unit {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
         if (r.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         val res = GmsDocumentScanningResult.fromActivityResultIntent(r.data)
-        val pdf = res?.pdf ?: return@rememberLauncherForActivityResult
+        val uris = res?.pages?.map { it.imageUri }.orEmpty()
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            val job = DocScanner.save(ctx, pdf.uri, pdf.pageCount)
-            if (job != null) {
-                Graph.prefs.bumpSuccess(); onSaved(job)
-                if (Graph.prefs.settings.first().searchableScans) SearchablePdf.inBackground(job.file)
-            } else Toaster.show("Couldn't save the scan")
+            val kept = DocScanner.keep(ctx, uris)
+            if (kept.isEmpty()) Toaster.show("Couldn't read the scan") else onPages(kept)
         }
     }
     return { (ctx as? Activity)?.let { DocScanner.start(it, launcher) } }
+}
+
+/** Builds the PDF from the reviewed pages. */
+suspend fun saveScan(context: Context, pages: List<ScanPage>, quality: Quality, report: (Float) -> Unit): JobResult? {
+    val lib = Graph.library
+    val out = lib.newFile(lib.stampedName("Scan"))
+    val n = ImagesToPdf.create(
+        context, pages.map { it.uri }, out, PageOptions(size = "Fit to image"), quality, report,
+        rotations = pages.associate { it.uri.toString() to it.turn },
+        filters = pages.associate { it.uri.toString() to it.filter },
+    )
+    if (n == 0) { out.delete(); return null }
+    if (Graph.prefs.settings.first().searchableScans) SearchablePdf.inBackground(out)
+    return JobResult(out, n, "Scan saved!", again = "scan", againLabel = "Scan another document")
 }
 
 /** A recognized line of text and its box in the bitmap, in pixels. */
