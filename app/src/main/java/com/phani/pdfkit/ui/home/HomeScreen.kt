@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,25 +80,31 @@ fun HomeScreen(
     val c = Pk.colors
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 14.dp), verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(greeting(), fontSize = 17.sp, color = c.ink2)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Pdf Kit", style = MaterialTheme.typography.displaySmall, color = c.ink)
-                        Pill("Offline", c.green, c.greenTint, dot = true)
-                    }
+            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 14.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(c.blue), contentAlignment = Alignment.Center) {
+                    Icon(PkIcons.DocPdf, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
+                Spacer(Modifier.width(10.dp))
+                Text("Pdf Kit", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.weight(1f))
                 IconBtn(PkIcons.Bell, size = 24.dp, label = "Notifications", onClick = onBell)
             }
+            Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp)) {
+                Text(greeting(), style = MaterialTheme.typography.displaySmall, color = c.ink)
+                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(c.green))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Works offline. Files stay on your phone.", fontSize = 14.5.sp, color = c.ink2)
+                }
+            }
             Row(
-                Modifier.anchor("search").padding(start = 20.dp, end = 20.dp, top = 18.dp).fillMaxWidth().height(48.dp)
+                Modifier.anchor("search").padding(start = 20.dp, end = 20.dp, top = 20.dp).fillMaxWidth().height(50.dp)
                     .pressable(scaleTo = 0.98f, onClick = onSearch)
-                    .clip(RoundedCornerShape(14.dp)).background(c.surf).padding(horizontal = 16.dp),
+                    .clip(RoundedCornerShape(14.dp)).border(1.dp, c.line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(PkIcons.Search, null, tint = c.ink3, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Search files, tools...", color = c.ink3, fontSize = 15.5.sp)
+                Text("Search files and tools", color = c.ink3, fontSize = 15.5.sp)
             }
             androidx.compose.animation.AnimatedVisibility(draftCount > 0) {
                 Row(
@@ -115,7 +123,7 @@ fun HomeScreen(
                     IconBtn(PkIcons.Close, tint = c.ink2, size = 16.dp, label = "Discard", onClick = onDiscardDraft)
                 }
             }
-            SectionTitle("Quick tools", Modifier.padding(start = 22.dp, top = 26.dp, bottom = 14.dp))
+            SectionTitle("Quick tools", Modifier.padding(start = 22.dp, top = 28.dp, bottom = 14.dp))
             val keys = ToolCatalog.quick + "more"
             Column(Modifier.anchor("quick").padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 keys.chunked(4).forEach { row ->
@@ -174,6 +182,6 @@ private fun QuickTile(icon: ImageVector, label: String, more: Boolean, modifier:
         Box(Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(16.dp)).background(c.surf), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = if (more) c.ink else c.blue, modifier = Modifier.size(28.dp))
         }
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = c.ink, textAlign = TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = c.ink, textAlign = TextAlign.Center, maxLines = 2, lineHeight = 16.sp, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp).heightIn(min = 32.dp))
     }
 }

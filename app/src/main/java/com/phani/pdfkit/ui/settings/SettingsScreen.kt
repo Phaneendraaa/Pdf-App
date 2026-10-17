@@ -65,20 +65,10 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()) {
         Text("Settings", style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(start = 22.dp, top = 12.dp))
-        Row(
-            Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(Brush.linearGradient(listOf(c.greenTint, c.surf)))
-                .border(1.dp, c.green.copy(alpha = 0.15f), RoundedCornerShape(16.dp)).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(44.dp).shadow(4.dp, RoundedCornerShape(12.dp), spotColor = c.green).clip(RoundedCornerShape(12.dp)).background(c.card), contentAlignment = Alignment.Center) {
-                Icon(PkIcons.Shield, null, tint = c.green, modifier = Modifier.size(24.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text("100% offline", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
-                Text("Your files never leave your phone.", fontSize = 14.sp, color = c.ink2)
-            }
+        Row(Modifier.padding(start = 22.dp, end = 22.dp, top = 6.dp), verticalAlignment = Alignment.Top) {
+            Icon(PkIcons.Shield, null, tint = c.green, modifier = Modifier.padding(top = 2.dp).size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Works fully offline. Your files never leave this phone.", fontSize = 14.sp, lineHeight = 20.sp, color = c.ink2)
         }
 
         Group("General") {
