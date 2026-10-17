@@ -60,56 +60,40 @@ import java.io.File
 class CompressState {
     var mode by mutableStateOf("To a size")
     var level by mutableStateOf("Balanced")
-    var preset by mutableStateOf("200 KB")
-    var custom by mutableStateOf("")
+    var custom by mutableStateOf("200")
     var unit by mutableStateOf("KB")
     var gray by mutableStateOf(false)
 
-    /** The size limit in bytes when compressing to a size, else null. */
-    fun targetBytes(): Long? {
-        if (mode != "To a size") return null
-        if (preset == "Custom") return custom.toLongOrNull()?.takeIf { it > 0 }?.let { if (unit == "MB") it * 1024 * 1024 else it * 1024 }
-        val n = preset.substringBefore(' ').toLongOrNull() ?: return null
-        return if (preset.endsWith("MB")) n * 1024 * 1024 else n * 1024
-    }
+    /** The size limit in bytes the user typed or picked. */
+    fun targetBytes(): Long? =
+        custom.toLongOrNull()?.takeIf { it > 0 }?.let { if (unit == "MB") it * 1024 * 1024 else it * 1024 }
 
-    val ready: Boolean get() = mode != "To a size" || (targetBytes() ?: 0L) > 0L
+    val ready: Boolean get() = (targetBytes() ?: 0L) > 0L
 
-    companion object { val PRESETS = listOf("100 KB", "200 KB", "300 KB", "500 KB", "1 MB", "2 MB", "Custom") }
+    fun pick(n: Int, u: String) { custom = n.toString(); unit = u }
+
+    companion object { val PRESETS = listOf(100 to "KB", 200 to "KB", 500 to "KB", 1 to "MB") }
 }
 
 @Composable
 fun CompressOptions(st: CompressState, file: File?) {
     val c = Pk.colors
-    OptLabel("How do you want to compress?")
-    Segmented(listOf("To a size", "By quality"), st.mode) { st.mode = it }
-    if (st.mode == "To a size") {
-        OptLabel("Make it smaller than")
-        ChipRow(CompressState.PRESETS, st.preset) { st.preset = it }
-        AnimatedVisibility(st.preset == "Custom") {
-            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    st.custom, { st.custom = it.filter(Char::isDigit).take(5) }, singleLine = true, modifier = Modifier.weight(1f),
-                    placeholder = { Text("e.g. 150", color = c.ink3) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
-                )
-                Spacer(Modifier.width(10.dp))
-                Segmented(listOf("KB", "MB"), st.unit, Modifier.width(120.dp)) { st.unit = it }
-            }
-        }
-        OptHint("Keeps the best quality that fits. Many job and government forms ask for under 200 KB or 500 KB." + (file?.let { " This file is ${Fmt.size(it.length())}." } ?: ""))
-    } else {
-        OptLabel("Compression level")
-        Segmented(listOf("Strong", "Balanced", "Light"), st.level) { st.level = it }
-        OptHint(
-            when (st.level) {
-                "Strong" -> "Smallest file. Images get softer."
-                "Light" -> "Keeps images sharp. Smaller savings."
-                else -> "Good balance of size and quality."
-            } + (file?.let { " This file is ${Fmt.size(it.length())}." } ?: ""),
-        )
+    OptLabel("Make it smaller than")
+    ChipRow(CompressState.PRESETS.map { "${it.first} ${it.second}" }, "${st.custom} ${st.unit}") { label ->
+        CompressState.PRESETS.first { "${it.first} ${it.second}" == label }.let { st.pick(it.first, it.second) }
     }
+    OptLabel("Or type your own size")
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            st.custom, { st.custom = it.filter(Char::isDigit).take(5) }, singleLine = true, modifier = Modifier.weight(1f),
+            placeholder = { Text("e.g. 150", color = c.ink3) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
+        )
+        Spacer(Modifier.width(10.dp))
+        Segmented(listOf("KB", "MB"), st.unit, Modifier.width(120.dp)) { st.unit = it }
+    }
+    OptHint("Keeps the best quality that fits." + (file?.let { " This file is ${Fmt.size(it.length())}." } ?: ""))
     SwitchRow("Black and white", "Smaller files, good for printing and forms", st.gray) { st.gray = it }
 }
 
