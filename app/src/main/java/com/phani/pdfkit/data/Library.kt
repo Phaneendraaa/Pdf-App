@@ -69,16 +69,31 @@ class Library(context: Context) {
         refreshBlocking(); ok
     }
 
+    /** For work that must finish even after the screen that started it is gone (like Undo). */
+    val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main)
+
+    /** Result of saving an edit: the file that now holds it, and a backup of the original when it was overwritten. */
+    data class Saved(val file: File, val backup: File?)
+
     /**
-     * Writes an edit with [write] and either swaps it over [target] (replace) or keeps it as a new copy
-     * named after [target] plus [suffix]. Returns the final file, or null if writing failed.
+     * Writes an edit with [write] and either swaps it over [target] (replace, keeping a backup for Undo)
+     * or keeps it as a new copy named after [target] plus [suffix]. Returns null if writing failed.
      */
-    suspend fun saveEdit(target: File, replace: Boolean, suffix: String, write: (File) -> Unit): File? {
+    suspend fun saveEdit(target: File, replace: Boolean, suffix: String, write: (File) -> Unit): Saved? {
         val base = target.name.replace(Regex("^in_\\d+_"), "").substringBeforeLast('.').removeSuffix(suffix)
         val out = if (replace) tempFile() else newFile(base + suffix)
         val ok = withContext(Dispatchers.IO) { runCatching { write(out) }.isSuccess }
         if (!ok) { out.delete(); return null }
-        return if (replace) { if (replaceWith(target, out)) target else { out.delete(); null } } else { refresh(); out }
+        if (!replace) { refresh(); return Saved(out, null) }
+        val backup = withContext(Dispatchers.IO) { runCatching { target.copyTo(File(dir, ".undo_backup.pdf"), overwrite = true) }.getOrNull() }
+        return if (replaceWith(target, out)) Saved(target, backup) else { out.delete(); null }
+    }
+
+    /** Puts the backup made by [saveEdit] back over [target]. */
+    suspend fun undoSave(target: File, backup: File): Boolean {
+        val tmp = tempFile()
+        val copied = withContext(Dispatchers.IO) { runCatching { backup.copyTo(tmp, overwrite = true); true }.getOrDefault(false) }
+        return copied && replaceWith(target, tmp)
     }
 
     fun stampedName(prefix: String): String =

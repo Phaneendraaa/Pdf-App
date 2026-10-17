@@ -88,6 +88,8 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             Divider()
             SRow(PkIcons.Palette, "Theme", value = settings.theme) { sheet = "theme" }
             Divider()
+            SRow(PkIcons.Check, "When I save edits", value = when (settings.saveMode) { "copy" -> "New copy"; "ask" -> "Ask me"; else -> "Update PDF" }) { sheet = "savemode" }
+            Divider()
             SRow(PkIcons.Pencil, "Autofill details", sub = "Name, email and phone for forms") { sheet = "autofill" }
             Divider()
             SRow(PkIcons.Ocr, "Searchable scans", sub = "Make scans searchable after scanning", trailing = { Switch(settings.searchableScans) }) {
@@ -128,6 +130,15 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             }
         }
         "autofill" -> com.phani.pdfkit.ui.forms.AutofillSheet({ sheet = null })
+        "savemode" -> PkSheet({ sheet = null }, "When I save edits") {
+            listOf(
+                Triple("update", "Update the PDF", "Fastest. One file, with Undo right after saving"),
+                Triple("copy", "Save a new copy", "Keeps the original untouched every time"),
+                Triple("ask", "Ask me each time", "Choose on every save"),
+            ).forEach { (k, t, sub) ->
+                ChoiceOption(t, sub, settings.saveMode == k) { scope.launch { Graph.prefs.setSaveMode(k) }; sheet = null }
+            }
+        }
         "theme" -> PkSheet({ sheet = null }, "Theme") {
             listOf("Light" to "Clean white interface", "Dark" to "Easier on the eyes at night", "System" to "Match your phone setting").forEach { (v, s) ->
                 ChoiceOption(v, s, settings.theme == v) { scope.launch { Graph.prefs.setTheme(v) }; sheet = null }

@@ -49,6 +49,13 @@ object TextEdit {
 
     fun read(file: File, pageIndex: Int): Page = PdfTools.load(file).use { doc -> read(doc, pageIndex) }
 
+    /** Lines of every page (up to [max]) with one file load, for find and replace. */
+    fun readAll(file: File, max: Int = 300): List<Page> = PdfTools.load(file).use { doc ->
+        (0 until minOf(doc.numberOfPages, max)).map { i ->
+            runCatching { read(doc, i) }.getOrElse { Page(emptyList(), 1f, 1f, "Can't read this page") }
+        }
+    }
+
     private fun read(doc: PDDocument, pageIndex: Int): Page {
         val page = doc.getPage(pageIndex)
         val box = page.cropBox

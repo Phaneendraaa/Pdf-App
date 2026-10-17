@@ -252,7 +252,7 @@ fun BoxScope.ToastHost() {
     val msg by Toaster.message.collectAsState()
     LaunchedEffect(msg?.id) {
         val m = msg ?: return@LaunchedEffect
-        delay(if (m.action != null) 4000 else 2000)
+        delay(if (m.action != null) 6000 else 2000)
         if (Toaster.message.value?.id == m.id) Toaster.message.value = null
     }
     var last by remember { mutableStateOf<ToastMsg?>(null) }

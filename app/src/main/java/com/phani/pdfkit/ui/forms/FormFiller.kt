@@ -78,6 +78,7 @@ import com.phani.pdfkit.ui.icons.PkIcons
 import com.phani.pdfkit.ui.theme.Pk
 import com.phani.pdfkit.ui.theme.tint
 import com.phani.pdfkit.ui.tools.displayName
+import com.phani.pdfkit.ui.edit.announceSaved
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,7 +98,6 @@ fun FormFiller(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
     val initial = remember { HashMap<String, String>() }
     var page by remember { mutableIntStateOf(startPage.coerceIn(0, (pdf.pageCount - 1).coerceAtLeast(0))) }
     var active by remember { mutableStateOf<FormWidget?>(null) }
-    var saveAsk by remember { mutableStateOf(false) }
     var keepEditable by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
@@ -158,22 +158,18 @@ fun FormFiller(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
     fun save(replace: Boolean) {
         saving = true
         val changes = values.filter { (k, v) -> initial[k] != v }
+        val editable = keepEditable
         scope.launch {
-            val lib = Graph.library
-            val out = if (replace) lib.tempFile() else lib.newFile(displayName(file).substringBeforeLast('.').removeSuffix("_filled") + "_filled")
-            val skipped = withContext(Dispatchers.IO) { runCatching { FormFill.apply(file, changes, out, keepEditable) }.getOrNull() }
-            if (skipped == null) { out.delete(); saving = false; Toaster.show("Couldn't save the form"); return@launch }
-            val note = if (skipped > 0) " · $skipped field${if (skipped == 1) "" else "s"} skipped (unsupported characters)" else ""
-            if (replace) {
-                val done = lib.replaceWith(file, out)
-                saving = false
-                if (done) { Toaster.show("Saved to ${file.name}$note"); onSaved(file) } else { out.delete(); Toaster.show("Couldn't update the file") }
-            } else {
-                lib.refresh(); saving = false
-                Toaster.show("Saved as ${out.name}$note"); onSaved(out)
-            }
+            var skipped = 0
+            val res = Graph.library.saveEdit(file, replace, "_filled") { out -> skipped = FormFill.apply(file, changes, out, editable) }
+            saving = false
+            if (res == null) { Toaster.show("Couldn't save the form"); return@launch }
+            announceSaved(file, res, onSaved)
+            if (skipped > 0 && res.backup == null) Toaster.show("$skipped field${if (skipped == 1) "" else "s"} skipped (unsupported characters)")
+            onSaved(res.file)
         }
     }
+    val onSave = com.phani.pdfkit.ui.edit.rememberSave(inLibrary) { save(it) }
 
     Column(Modifier.fillMaxSize().background(if (c.isDark) Color(0xFF0A0B0E) else Color(0xFFF1F2F5))) {
         Row(Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -211,12 +207,22 @@ fun FormFiller(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
             }
         }
         Row(
+            Modifier.fillMaxWidth().background(c.bg).padding(start = 20.dp, end = 14.dp, top = 6.dp).clickable { keepEditable = !keepEditable },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Keep fields editable after saving", fontSize = 13.5.sp, color = c.ink2, modifier = Modifier.weight(1f))
+            Switch(
+                keepEditable, { keepEditable = it },
+                colors = SwitchDefaults.colors(checkedTrackColor = c.blue, checkedThumbColor = Color.White, uncheckedTrackColor = c.line, uncheckedBorderColor = c.line, uncheckedThumbColor = Color.White),
+            )
+        }
+        Row(
             Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("Cancel", color = c.ink2, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClose).padding(14.dp))
             PrimaryButton(if (saving) "Saving..." else "Save", Modifier.weight(1f), enabled = dirty && !saving) {
-                if (inLibrary) saveAsk = true else save(false)
+                onSave()
             }
         }
     }
@@ -237,24 +243,6 @@ fun FormFiller(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
 
     if (details) AutofillSheet({ details = false }) { saved = it }
 
-    if (saveAsk) {
-        val blue = tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
-        val green = tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
-        PkSheet({ saveAsk = false }, "Save your form") {
-            SheetOption(PkIcons.Check, blue.fg, blue.bg, "Update this PDF", "Replaces the current file, no extra copy") { saveAsk = false; save(true) }
-            SheetOption(PkIcons.Copy, green.fg, green.bg, "Save as a new copy", "Keeps the empty form untouched") { saveAsk = false; save(false) }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Keep fields editable", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.ink)
-                    Text("Off: answers become part of the page so every app shows them", fontSize = 12.5.sp, color = c.ink2)
-                }
-                Switch(
-                    keepEditable, { keepEditable = it },
-                    colors = SwitchDefaults.colors(checkedTrackColor = c.blue, checkedThumbColor = Color.White, uncheckedTrackColor = c.line, uncheckedBorderColor = c.line, uncheckedThumbColor = Color.White),
-                )
-            }
-        }
-    }
 }
 
 @Composable

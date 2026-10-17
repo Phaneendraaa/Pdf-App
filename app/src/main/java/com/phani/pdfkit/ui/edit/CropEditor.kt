@@ -89,12 +89,14 @@ fun CropEditor(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
         val targets = if (scopeAll == "All pages") (0 until pdf.pageCount).toList() else listOf(page)
         val (cl, ct, cr, cb) = listOf(l, t, r, b)
         scope.launch {
-            val out = Graph.library.saveEdit(file, replace, "_cropped") { PdfTools.crop(file, targets, cl, ct, cr, cb, it) }
+            val res = Graph.library.saveEdit(file, replace, "_cropped") { PdfTools.crop(file, targets, cl, ct, cr, cb, it) }
             saving = false
-            if (out == null) Toaster.show("Couldn't crop the pages")
-            else { Toaster.show(if (replace) "Cropped ${file.name}" else "Saved as ${out.name}"); onSaved(out) }
+            if (res == null) Toaster.show("Couldn't crop the pages")
+            else { announceSaved(file, res, onSaved); onSaved(res.file) }
         }
     }
+
+    val onSave = rememberSave(inLibrary) { save(it) }
 
     Column(Modifier.fillMaxSize().background(if (c.isDark) Color(0xFF0A0B0E) else Color(0xFFF1F2F5))) {
         Row(Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -167,11 +169,10 @@ fun CropEditor(pdf: PdfDoc, file: File, startPage: Int, onClose: () -> Unit, onS
             Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Cancel", color = c.ink2, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClose).padding(14.dp))
                 PrimaryButton(if (saving) "Cropping..." else "Crop", Modifier.weight(1f), enabled = !saving) {
-                    if (inLibrary) ask = true else save(false)
+                    onSave()
                 }
             }
         }
     }
 
-    if (ask) SaveChoiceSheet("Save the cropped PDF", { ask = false }, { save(true) }, { save(false) })
 }

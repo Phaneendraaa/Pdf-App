@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -145,13 +146,21 @@ fun EditLineSheet(
     var color by remember { mutableIntStateOf(current?.color ?: sampled.second) }
     val swatches = listOf(sampled.second, 0xFF101217.toInt(), 0xFF2463EB.toInt(), 0xFFE11D48.toInt(), 0xFF16A34A.toInt()).distinct()
 
-    PkSheet(onDismiss, "Edit text") {
+    val changed = text != block.text || size != block.sizePt || bold != block.bold || color != sampled.second || current != null
+    val apply = { onApply(LineEdit(text, size, bold, color, sampled.first)) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // Swiping the sheet away keeps the change, so a quick edit needs no extra tap.
+    PkSheet({ if (changed) apply() else onDismiss() }, "Edit text") {
         Text(
             "Original: ${block.text}", fontSize = 12.5.sp, color = c.ink3, maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         )
         OutlinedTextField(
-            text, { text = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+            text, { text = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp).focusRequester(focus),
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (changed) apply() else onDismiss() }),
             textStyle = androidx.compose.ui.text.TextStyle(
                 fontFamily = family(block), fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (block.italic) FontStyle.Italic else FontStyle.Normal, fontSize = 17.sp, color = Color(color),
@@ -194,7 +203,7 @@ fun EditLineSheet(
                 Text("Delete", color = c.red, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
             }
             Spacer(Modifier.width(8.dp))
-            PrimaryButton("Apply", Modifier.weight(1f), enabled = text != block.text || size != block.sizePt || bold != block.bold || color != sampled.second || current != null) {
+            PrimaryButton("Apply", Modifier.weight(1f), enabled = changed) {
                 onApply(LineEdit(text, size, bold, color, sampled.first))
             }
         }

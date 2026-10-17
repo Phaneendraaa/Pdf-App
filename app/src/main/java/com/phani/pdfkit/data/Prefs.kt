@@ -25,6 +25,7 @@ data class Settings(
     val ratePrompted: Boolean = false,
     val searchableScans: Boolean = true,
     val nightReading: Boolean = false,
+    val saveMode: String = "update",   // update, copy, ask
 )
 
 class Prefs(private val context: Context) {
@@ -40,6 +41,7 @@ class Prefs(private val context: Context) {
         val ratePrompted = booleanPreferencesKey("rate_prompted")
         val searchableScans = booleanPreferencesKey("searchable_scans")
         val nightReading = booleanPreferencesKey("night_reading")
+        val saveMode = stringPreferencesKey("save_mode")
     }
 
     val settings: Flow<Settings> = context.store.data.map { p ->
@@ -55,6 +57,7 @@ class Prefs(private val context: Context) {
             ratePrompted = p[K.ratePrompted] ?: false,
             searchableScans = p[K.searchableScans] ?: true,
             nightReading = p[K.nightReading] ?: false,
+            saveMode = p[K.saveMode] ?: "update",
         )
     }
 
@@ -63,6 +66,7 @@ class Prefs(private val context: Context) {
     suspend fun setAppLock(v: Boolean) = context.store.edit { it[K.appLock] = v }
     suspend fun setOnboarded(v: Boolean) = context.store.edit { it[K.onboarded] = v }
     suspend fun setTourDone(v: Boolean) = context.store.edit { it[K.tourDone] = v }
+    suspend fun setSaveMode(v: String) = context.store.edit { it[K.saveMode] = v }
     suspend fun setNightReading(v: Boolean) = context.store.edit { it[K.nightReading] = v }
     suspend fun setSearchableScans(v: Boolean) = context.store.edit { it[K.searchableScans] = v }
     suspend fun setRatePrompted() = context.store.edit { it[K.ratePrompted] = true }

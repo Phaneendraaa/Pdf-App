@@ -17,14 +17,34 @@ object PageEdits {
     private fun g(c: Int) = ((c shr 8) and 0xFF) / 255f
     private fun b(c: Int) = (c and 0xFF) / 255f
 
+    /** All edits for one page. */
+    data class PageChange(
+        val page: Int,
+        val strokes: List<InkStroke> = emptyList(),
+        val texts: List<TextMark> = emptyList(),
+        val images: List<ImageMark> = emptyList(),
+        val textEdits: List<TextEditOp> = emptyList(),
+    )
+
     /** Writes a copy of [src] with the edits flattened onto page [pageIndex]. Returns the page count. */
     fun apply(
         src: File, pageIndex: Int, strokes: List<InkStroke>, texts: List<TextMark>, images: List<ImageMark>, out: File,
         textEdits: List<TextEditOp> = emptyList(),
-    ): Int =
+    ): Int = applyAll(src, listOf(PageChange(pageIndex, strokes, texts, images, textEdits)), out)
+
+    /** Writes a copy of [src] with every page's edits applied in one pass. Returns the page count. */
+    fun applyAll(src: File, changes: List<PageChange>, out: File): Int =
         PdfTools.load(src).use { doc ->
+            changes.forEach { ch -> if (ch.page in 0 until doc.numberOfPages) applyTo(doc, ch) }
+            doc.save(out)
+            doc.numberOfPages
+        }
+
+    private fun applyTo(doc: com.tom_roush.pdfbox.pdmodel.PDDocument, ch: PageChange) {
+        val pageIndex = ch.page; val strokes = ch.strokes; val texts = ch.texts; val images = ch.images
+        run {
             // Existing-text edits go first so new ink and marks sit on top of them.
-            TextEdit.applyTo(doc, pageIndex, textEdits)
+            TextEdit.applyTo(doc, pageIndex, ch.textEdits)
             val page = doc.getPage(pageIndex)
             val box = page.mediaBox
             fun px(x: Float) = box.lowerLeftX + x * box.width
@@ -61,7 +81,6 @@ object PageEdits {
                     cs.endText()
                 }
             }
-            doc.save(out)
-            doc.numberOfPages
         }
+    }
 }

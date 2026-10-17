@@ -34,6 +34,10 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -88,7 +92,27 @@ private class Mark(text: String, x: Float, y: Float, size: Float, color: Int) {
     var size by mutableStateOf(size); var color by mutableStateOf(color)
 }
 
-/** Single-page editor: ink, highlight, text and signature, flattened into a new PDF on save. */
+/** Everything changed on one page. Kept while the user moves between pages; all pages are saved together. */
+private class PageWork {
+    val strokes = mutableStateListOf<InkStroke>()
+    val texts = mutableStateListOf<Mark>()
+    var sig by mutableStateOf<Bitmap?>(null)
+    var sigX by mutableStateOf(0.55f)
+    var sigY by mutableStateOf(0.78f)
+    var sigW by mutableStateOf(0.3f)
+    val lineEdits = mutableStateMapOf<Int, LineEdit>()
+    val history = mutableStateListOf<String>() // "s", "t", "g", "e<id>" for undo order
+    val redo = mutableStateListOf<Pair<String, Any?>>()
+    var layout by mutableStateOf<com.phani.pdfkit.pdf.TextEdit.Page?>(null)
+    val dirty: Boolean get() = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty()
+    fun record(h: String) { history += h; redo.clear() }
+}
+
+/**
+ * Editor for the whole PDF: move between pages with the arrows (or jump from the page grid),
+ * change as many pages as you like, then save once. Ink, highlight, text, signature and edits
+ * to existing text are all flattened in one pass.
+ */
 @Composable
 fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose: () -> Unit, onSaved: (File) -> Unit) {
     val c = Pk.colors
@@ -96,77 +120,125 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     val scope = rememberCoroutineScope()
     var tool by remember { mutableStateOf(initialTool) }
     var ink by remember { mutableStateOf(INKS[1]) }
-    val strokes = remember { mutableStateListOf<InkStroke>() }
+    var current by remember { mutableIntStateOf(page.coerceIn(0, (pdf.pageCount - 1).coerceAtLeast(0))) }
+    val works = remember { HashMap<Int, PageWork>() }
+    val w = remember(current) { works.getOrPut(current) { PageWork() } }
     val live = remember { mutableStateListOf<Pair<Float, Float>>() }
-    val texts = remember { mutableStateListOf<Mark>() }
-    var sig by remember { mutableStateOf<Bitmap?>(null) }
-    var sigX by remember { mutableStateOf(0.55f) }
-    var sigY by remember { mutableStateOf(0.78f) }
-    var sigW by remember { mutableStateOf(0.3f) }
     var padOpen by remember { mutableStateOf(false) }
     var textAt by remember { mutableStateOf<Offset?>(null) }
     var saving by remember { mutableStateOf(false) }
-    var askSave by remember { mutableStateOf(false) }
-    val inLibrary = file.absolutePath.startsWith(Graph.library.dir.absolutePath)
-    val history = remember { mutableStateListOf<String>() } // "s", "t", "g", "e<id>" for undo order
-    val redo = remember { mutableStateListOf<Pair<String, Any?>>() }
-    fun record(h: String) { history += h; redo.clear() }
-    val lineEdits = remember { androidx.compose.runtime.mutableStateMapOf<Int, LineEdit>() }
+    var pagePicker by remember { mutableStateOf(false) }
+    var replaceOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<com.phani.pdfkit.pdf.TextBlock?>(null) }
-    val layout by produceState<com.phani.pdfkit.pdf.TextEdit.Page?>(null, page) {
-        value = withContext(Dispatchers.IO) { runCatching { com.phani.pdfkit.pdf.TextEdit.read(file, page) }.getOrNull() }
+    var toldEdit by remember { mutableStateOf(false) }
+    val inLibrary = file.absolutePath.startsWith(Graph.library.dir.absolutePath)
+
+    val strokes = w.strokes
+    val texts = w.texts
+    val lineEdits = w.lineEdits
+    val history = w.history
+    val redo = w.redo
+    var sig by w::sig
+    var sigX by w::sigX
+    var sigY by w::sigY
+    var sigW by w::sigW
+
+    val layout by produceState(w.layout, current) {
+        val l = w.layout ?: withContext(Dispatchers.IO) { runCatching { com.phani.pdfkit.pdf.TextEdit.read(file, current) }.getOrNull() }
+        w.layout = l
+        value = l
     }
     LaunchedEffect(tool, layout) {
         if (tool != "edit") return@LaunchedEffect
         val l = layout ?: return@LaunchedEffect
-        Toaster.show(l.problem ?: "Tap any line of text to edit it")
+        if (l.problem != null) Toaster.show(l.problem)
+        else if (!toldEdit) { toldEdit = true; Toaster.show("Tap any line to edit it. Use the arrows for other pages.") }
     }
-
     LaunchedEffect(tool) {
         if (tool == "sign" && sig == null) {
             val saved = withContext(Dispatchers.IO) { SignatureStore.load(ctx) }
-            if (saved != null) { sig = saved; record("g") } else padOpen = true
+            if (saved != null) { sig = saved; w.record("g") } else padOpen = true
         }
         if (tool == "text" && texts.isEmpty()) Toaster.show("Tap the page where you want text")
     }
-    val dirty = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty()
+    val editedPages = works.filter { it.value.dirty }.keys.sorted()
+    val dirty = editedPages.isNotEmpty()
     BackHandler { onClose() }
 
-    /** [replace] overwrites this PDF with the edited one; otherwise the edit goes to a new copy. */
     fun save(replace: Boolean) {
         saving = true
-        val s = strokes.toList()
-        val t = texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) }
-        val g = sig?.let { listOf(ImageMark(it, sigX, sigY, sigW)) } ?: emptyList()
-        val blocksById = layout?.blocks?.associateBy { it.id }.orEmpty()
-        val te = lineEdits.mapNotNull { (id, e) ->
-            blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
+        val changes = works.filter { it.value.dirty }.map { (p, pw) ->
+            val blocksById = pw.layout?.blocks?.associateBy { it.id }.orEmpty()
+            PageEdits.PageChange(
+                page = p,
+                strokes = pw.strokes.toList(),
+                texts = pw.texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) },
+                images = pw.sig?.let { listOf(ImageMark(it, pw.sigX, pw.sigY, pw.sigW)) } ?: emptyList(),
+                textEdits = pw.lineEdits.mapNotNull { (id, e) ->
+                    blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
+                },
+            )
         }
+        val signed = changes.any { it.images.isNotEmpty() }
         scope.launch {
-            val lib = Graph.library
-            val out = if (replace) lib.tempFile() else {
-                val suffix = if (g.isNotEmpty()) "_signed" else "_edited"
-                lib.newFile(displayName(file).substringBeforeLast('.').removeSuffix("_edited").removeSuffix("_signed") + suffix)
-            }
-            val ok = withContext(Dispatchers.IO) { runCatching { PageEdits.apply(file, page, s, t, g, out, textEdits = te) }.isSuccess }
-            if (!ok) { out.delete(); saving = false; Toaster.show("Couldn't save the changes"); return@launch }
-            if (replace) {
-                val done = lib.replaceWith(file, out)
-                saving = false
-                if (done) { Toaster.show("Saved to ${file.name}"); onSaved(file) } else { out.delete(); Toaster.show("Couldn't update the file") }
-            } else {
-                lib.refresh(); saving = false
-                Toaster.show("Saved as ${out.name}"); onSaved(out)
-            }
+            val res = Graph.library.saveEdit(file, replace, if (signed) "_signed" else "_edited") { out -> PageEdits.applyAll(file, changes, out) }
+            saving = false
+            if (res == null) { Toaster.show("Couldn't save the changes"); return@launch }
+            announceSaved(file, res, onSaved)
+            onSaved(res.file)
         }
     }
+    val onSave = rememberSave(inLibrary) { replace -> save(replace) }
 
-    val bmp by produceState<Bitmap?>(null, page) { value = pdf.render(page, 1400) }
-    val ratio = pdf.ratios.getOrElse(page) { 0.707f }
+    /** Changes every line containing [find] on every page; the user reviews, then saves once. */
+    suspend fun replaceAll(find: String, repl: String): Pair<Int, Int> {
+        val all = withContext(Dispatchers.IO) { runCatching { com.phani.pdfkit.pdf.TextEdit.readAll(file) }.getOrDefault(emptyList()) }
+        var lines = 0; var pagesHit = 0
+        all.forEachIndexed { p, l ->
+            val pw = works.getOrPut(p) { PageWork() }
+            if (pw.layout == null) pw.layout = l
+            val blocks = pw.layout?.blocks.orEmpty()
+            val hits = blocks.filter { (pw.lineEdits[it.id]?.text ?: it.text).contains(find, ignoreCase = true) }
+            if (hits.isEmpty()) return@forEachIndexed
+            val bmp = pdf.render(p, 1400)
+            hits.forEach { b ->
+                val cur = pw.lineEdits[b.id]
+                val s = sampleColors(bmp, b)
+                pw.lineEdits[b.id] = LineEdit(
+                    (cur?.text ?: b.text).replace(find, repl, ignoreCase = true),
+                    cur?.sizePt ?: b.sizePt, cur?.bold ?: b.bold, cur?.color ?: s.second, cur?.background ?: s.first,
+                )
+                pw.record("e${b.id}")
+            }
+            lines += hits.size; pagesHit++
+        }
+        return lines to pagesHit
+    }
+
+    val bmp by produceState<Bitmap?>(null, current) { value = pdf.render(current, 1400) }
+    val ratio = pdf.ratios.getOrElse(current) { 0.707f }
 
     Column(Modifier.fillMaxSize().background(if (c.isDark) Color(0xFF0A0B0E) else Color(0xFFF1F2F5))) {
-        Row(Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Editing page ${page + 1}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.weight(1f).padding(start = 6.dp))
+        Row(Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 6.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = current > 0) { current-- }, contentAlignment = Alignment.Center) {
+                Icon(PkIcons.ChevronLeft, "Previous page", tint = if (current > 0) c.ink else c.ink3, modifier = Modifier.size(22.dp))
+            }
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable { pagePicker = true }.padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Page ${current + 1} of ${pdf.pageCount}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
+                Text(
+                    if (editedPages.isEmpty()) "Tap to jump to a page" else "${editedPages.size} page${if (editedPages.size == 1) "" else "s"} edited",
+                    fontSize = 12.sp, color = if (editedPages.isEmpty()) c.ink3 else c.green,
+                )
+            }
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = current < pdf.pageCount - 1) { current++ }, contentAlignment = Alignment.Center) {
+                Icon(PkIcons.ChevronRight, "Next page", tint = if (current < pdf.pageCount - 1) c.ink else c.ink3, modifier = Modifier.size(22.dp))
+            }
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable { replaceOpen = true }, contentAlignment = Alignment.Center) {
+                Icon(PkIcons.Search, "Find and replace", tint = c.ink, modifier = Modifier.size(20.dp))
+            }
             Box(
                 Modifier.size(40.dp).clip(CircleShape).clickable(enabled = history.isNotEmpty()) {
                     val h = history.removeAt(history.lastIndex)
@@ -195,18 +267,18 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
             val maxW = maxWidth; val maxH = maxHeight
-            val w = if (maxW / maxH > ratio) maxH * ratio else maxW
-            val h = w / ratio
+            val wDp = if (maxW / maxH > ratio) maxH * ratio else maxW
+            val hDp = wDp / ratio
             val density = LocalDensity.current
-            val wPx = with(density) { w.toPx() }; val hPx = with(density) { h.toPx() }
+            val wPx = with(density) { wDp.toPx() }; val hPx = with(density) { hDp.toPx() }
             Box(
-                Modifier.size(w, h).shadow(8.dp, RoundedCornerShape(3.dp)).background(Color.White)
-                    .pointerInput(tool) {
+                Modifier.size(wDp, hDp).shadow(8.dp, RoundedCornerShape(3.dp)).background(Color.White)
+                    .pointerInput(tool, current) {
                         if (tool == "draw" || tool == "highlight") {
                             detectDragGestures(
                                 onDragStart = { o -> live.clear(); live += (o.x / wPx) to (o.y / hPx) },
                                 onDragEnd = {
-                                    if (live.size > 1) { strokes += InkStroke(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink); record("s") }
+                                    if (live.size > 1) { strokes += InkStroke(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink); w.record("s") }
                                     live.clear()
                                 },
                                 onDragCancel = { live.clear() },
@@ -216,8 +288,10 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                         }
                     },
             ) {
-                bmp?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
-                    ?: CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), color = c.blue)
+                androidx.compose.animation.Crossfade(bmp, label = "editorPage") { b ->
+                    if (b != null) Image(b.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp), color = c.blue) }
+                }
                 Canvas(Modifier.fillMaxSize()) {
                     fun drawInk(pts: List<Pair<Float, Float>>, hl: Boolean, color: Int) {
                         if (pts.size < 2) return
@@ -252,7 +326,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                         Modifier.offset { IntOffset((sigX * wPx).roundToInt(), (sigY * hPx).roundToInt()) }
                             .size(with(density) { sw.toDp() }, with(density) { sh.toDp() })
                             .border(1.dp, if (tool == "sign") c.blue.copy(alpha = 0.6f) else Color.Transparent, RoundedCornerShape(4.dp))
-                            .pointerInput(s) {
+                            .pointerInput(s, current) {
                                 detectDragGestures { ch, d ->
                                     ch.consume()
                                     sigX = (sigX + d.x / wPx).coerceIn(0f, 1f - sigW)
@@ -282,44 +356,110 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                     }
                 }
                 "sign" -> Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Size", fontSize = 13.5.sp, color = c.ink2)
-                    Slider(
-                        sigW, { sigW = it }, valueRange = 0.12f..0.6f, modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
-                        colors = SliderDefaults.colors(thumbColor = c.blue, activeTrackColor = c.blue, inactiveTrackColor = c.blueTint),
-                    )
-                    Text("New", color = c.blue, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { padOpen = true }.padding(8.dp))
+                    if (sig == null) {
+                        Text("Sign this page too?", fontSize = 13.5.sp, color = c.ink2, modifier = Modifier.weight(1f))
+                        Text(
+                            "Place signature", color = c.blue, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                                scope.launch {
+                                    val saved = withContext(Dispatchers.IO) { SignatureStore.load(ctx) }
+                                    if (saved != null) { sig = saved; w.record("g") } else padOpen = true
+                                }
+                            }.padding(8.dp),
+                        )
+                    } else {
+                        Text("Size", fontSize = 13.5.sp, color = c.ink2)
+                        Slider(
+                            sigW, { sigW = it }, valueRange = 0.12f..0.6f, modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+                            colors = SliderDefaults.colors(thumbColor = c.blue, activeTrackColor = c.blue, inactiveTrackColor = c.blueTint),
+                        )
+                        Text("New", color = c.blue, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { padOpen = true }.padding(8.dp))
+                    }
                 }
                 else -> Spacer(Modifier.size(10.dp))
             }
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Cancel", color = c.ink2, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClose).padding(14.dp))
-                PrimaryButton(if (saving) "Saving..." else "Save", Modifier.weight(1f), enabled = dirty && !saving) {
-                    if (inLibrary) askSave = true else save(false)
+                PrimaryButton(
+                    when {
+                        saving -> "Saving..."
+                        editedPages.size > 1 -> "Save ${editedPages.size} pages"
+                        else -> "Save"
+                    },
+                    Modifier.weight(1f), enabled = dirty && !saving,
+                ) { onSave() }
+            }
+        }
+    }
+
+    if (pagePicker) com.phani.pdfkit.ui.components.PkSheet({ pagePicker = false }, "Go to page") {
+        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+            androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp).heightIn(max = 520.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(pdf.pageCount) { i ->
+                val thumb by produceState<Bitmap?>(null, i) { value = pdf.render(i, 240) }
+                val edited = i in editedPages
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { current = i; pagePicker = false }) {
+                    Box(
+                        Modifier.fillMaxWidth().aspectRatio(pdf.ratios.getOrElse(i) { 0.707f }).clip(RoundedCornerShape(4.dp)).background(Color.White)
+                            .border(if (i == current) 2.dp else 1.dp, if (i == current) c.blue else c.line, RoundedCornerShape(4.dp)),
+                    ) {
+                        thumb?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
+                        if (edited) Box(
+                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).clip(CircleShape).background(c.green),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(PkIcons.Check, "Edited", tint = Color.White, modifier = Modifier.size(12.dp)) }
+                    }
+                    Text("${i + 1}", fontSize = 12.5.sp, color = c.ink2, modifier = Modifier.padding(top = 6.dp))
                 }
             }
         }
     }
 
-    if (askSave) {
-        val blue = com.phani.pdfkit.ui.theme.tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
-        val green = com.phani.pdfkit.ui.theme.tint(0xFF16A34A, 0xFFECF8F1, c.isDark)
-        com.phani.pdfkit.ui.components.PkSheet({ askSave = false }, "Save your changes") {
-            com.phani.pdfkit.ui.components.SheetOption(PkIcons.Check, blue.fg, blue.bg, "Update this PDF", "Replaces the current file, no extra copy") { askSave = false; save(true) }
-            com.phani.pdfkit.ui.components.SheetOption(PkIcons.Copy, green.fg, green.bg, "Save as a new copy", "Keeps the original untouched") { askSave = false; save(false) }
+    if (replaceOpen) {
+        var find by remember { mutableStateOf("") }
+        var repl by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        com.phani.pdfkit.ui.components.PkSheet({ if (!busy) replaceOpen = false }, "Find and replace on all pages") {
+            OutlinedTextField(
+                find, { find = it }, singleLine = true, label = { Text("Find") }, shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue, focusedLabelColor = c.blue),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+            )
+            OutlinedTextField(
+                repl, { repl = it }, singleLine = true, label = { Text("Replace with") }, shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue, focusedLabelColor = c.blue),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
+            )
+            Text(
+                "Every line with this text is rewritten in a matching font. Check the pages, then Save once.",
+                fontSize = 12.5.sp, color = c.ink2, modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            PrimaryButton(if (busy) "Replacing..." else "Replace everywhere", Modifier.padding(top = 14.dp), enabled = find.isNotBlank() && !busy) {
+                busy = true
+                scope.launch {
+                    val (lines, pages) = replaceAll(find, repl)
+                    busy = false; replaceOpen = false
+                    tool = "edit"
+                    Toaster.show(if (lines == 0) "\"$find\" wasn't found as editable text" else "Changed $lines line${if (lines == 1) "" else "s"} on $pages page${if (pages == 1) "" else "s"}. Review, then Save.")
+                }
+            }
         }
     }
 
     editing?.let { b ->
         val sampled = remember(b.id, bmp) { sampleColors(bmp, b) }
         EditLineSheet(b, lineEdits[b.id], sampled, { editing = null }) { e ->
-            lineEdits[b.id] = e; record("e${b.id}"); editing = null
+            lineEdits[b.id] = e; w.record("e${b.id}"); editing = null
         }
     }
 
     if (padOpen) SignaturePad({ padOpen = false; if (sig == null) tool = "draw" }) { b ->
         padOpen = false
         scope.launch { withContext(Dispatchers.IO) { SignatureStore.save(ctx, b) } }
-        if (sig == null) record("g")
+        if (sig == null) w.record("g")
         sig = b; sigW = 0.3f
     }
 
@@ -337,7 +477,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             confirmButton = {
                 TextButton(enabled = value.isNotBlank(), onClick = {
                     texts += Mark(value.trim(), at.x.coerceAtMost(0.9f), (at.y - 0.012f).coerceIn(0f, 0.97f), 0.032f, if (ink == INKS[2] || ink == INKS[1]) ink else INKS[0])
-                    record("t"); textAt = null
+                    w.record("t"); textAt = null
                 }) { Text("Add", color = c.blue, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { textAt = null }) { Text("Cancel", color = c.ink2) } },
