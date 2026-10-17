@@ -15,7 +15,7 @@ data class PageOptions(
     val size: String = "A4",          // A4, Letter, Fit to image
     val margin: String = "None",      // None, Small, Large
     val orientation: String = "Portrait", // Portrait, Landscape
-    val filter: String = "Original",  // Original, Enhanced, B&W
+    val filter: String = "Original",  // Original, Auto, Gray, B&W
 )
 
 object ImagesToPdf {
