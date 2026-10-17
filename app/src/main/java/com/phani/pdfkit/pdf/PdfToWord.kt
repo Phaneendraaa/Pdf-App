@@ -34,9 +34,10 @@ import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
 /**
- * PDF to Word that keeps the look: fonts, sizes, bold/italic, colors, headings, centered and
- * indented text, bullets, simple tables and pictures in reading order, on the PDF's own page size.
- * Scanned pages can be read with on-device OCR. "Exact look" puts each page in as a picture.
+ * PDF to Word as editable text, like iLovePDF: fonts, sizes, bold/italic, colors, headings, line
+ * spacing, centered and indented text, bullets, simple tables, two-column pages as Word columns and
+ * real pictures in reading order. Page backgrounds and scan images are left out; scanned pages
+ * (and PDFs with a hidden OCR layer) come through as text.
  */
 object PdfToWord {
 
@@ -60,7 +61,7 @@ object PdfToWord {
             return out
         }
     }
-    private class Pic(val bytes: ByteArray, val wPx: Int, val hPx: Int, val top: Float, val wPt: Float, val hPt: Float)
+    private class Pic(val bytes: ByteArray, val wPx: Int, val hPx: Int, val top: Float, val wPt: Float, val hPt: Float, val x0: Float)
 
     private sealed interface Block { val top: Float }
     private class Para(val lines: List<Line>, override val top: Float, val spaceBefore: Float) : Block
@@ -69,20 +70,29 @@ object PdfToWord {
 
     private class PageData(val w: Float, val h: Float, val lines: List<Line>, val pics: List<Pic>)
 
-    // ---------- entry ----------
-
-    /**
-     * Converts [src] to .docx at [out]. [exact] puts each page in as a picture.
-     * [ocr] reads scanned pages (pages without text) with on-device text recognition. Returns the page count.
-     */
-    suspend fun convert(src: File, out: File, exact: Boolean, ocr: Boolean, report: (Float) -> Unit): Int {
-        return if (exact) exactLook(src, out, report) else editable(src, out, ocr, report)
+    /** Part of a page: full-width text, or two columns side by side. */
+    private sealed interface Zone { val top: Float; val bottom: Float }
+    private class Full(val lines: List<Line>) : Zone {
+        override val top get() = lines.minOf { it.base - it.size }
+        override val bottom get() = lines.maxOf { it.base }
+    }
+    private class Cols(val left: List<Line>, val right: List<Line>, val all: List<Line>) : Zone {
+        override val top get() = all.minOf { it.base - it.size }
+        override val bottom get() = all.maxOf { it.base }
     }
 
-    private suspend fun editable(src: File, out: File, ocr: Boolean, report: (Float) -> Unit): Int {
+    // ---------- entry ----------
+
+    /** Converts [src] to an editable .docx at [out]. Returns the page count. */
+    suspend fun convert(src: File, out: File, report: (Float) -> Unit): Int {
         val pages = ArrayList<PageData>()
         var picBytes = 0L
-        val view = if (ocr) (PdfDoc.open(src) as? PdfDoc.Open.Ok)?.doc else null
+        var view: PdfDoc? = null
+        var viewTried = false
+        fun viewer(): PdfDoc? {
+            if (!viewTried) { viewTried = true; view = (PdfDoc.open(src) as? PdfDoc.Open.Ok)?.doc }
+            return view
+        }
         try {
             PdfTools.load(src).use { doc ->
                 val n = doc.numberOfPages
@@ -95,100 +105,196 @@ object PdfToWord {
                     val pw = if (rot == 90 || rot == 270) box.height else box.width
                     val ph = if (rot == 90 || rot == 270) box.width else box.height
                     colors.clear()
-                    val lines = readLines(doc, i, colors)
-                    val pics = if (picBytes < 40L * 1024 * 1024) findPictures(page, ph).also { l -> picBytes += l.sumOf { it.bytes.size.toLong() } } else emptyList()
+                    val (lines, hidden) = readLines(doc, i, colors)
+                    val area = pw * ph
+                    var pics = if (picBytes < 40L * 1024 * 1024) findPictures(page, ph) else emptyList()
                     var finalLines = lines
-                    var finalPics = pics
-                    if (lines.isEmpty() && view != null) {
-                        // Scanned page: read it with OCR and keep the text instead of the picture.
-                        val bmp = view.render(i, 1600)
+                    if (lines.isNotEmpty()) {
+                        // Leave out page backgrounds, and the scan itself when the text is a hidden OCR layer.
+                        val limit = if (hidden > 0.5f) 0.25f else 0.5f
+                        pics = pics.filter { it.wPt * it.hPt < area * limit }
+                    } else {
+                        // Scanned page: read it and keep the words, not the photo of the page.
+                        val bmp = viewer()?.render(i, 2000)
                         if (bmp != null) {
                             val ocrLines = runCatching { Ocr.lines(bmp) }.getOrDefault(emptyList())
                             if (ocrLines.isNotEmpty()) {
                                 val k = pw / bmp.width
                                 finalLines = ocrLines.map { l ->
-                                    val size = ((l.bottom - l.top) * k * 0.78f).coerceIn(6f, 40f)
-                                    Line(listOf(Word(l.text, l.left * k, l.right * k, l.bottom * k - size * 0.2f, Style("Calibri", size, false, false, 0))))
-                                }.sortedBy { it.base }
-                                finalPics = emptyList()
+                                    val size = ((l.bottom - l.top) * k * 0.74f).coerceIn(6f, 40f)
+                                    Line(splitOcrWords(l.text, l.left * k, l.right * k, l.bottom * k - size * 0.22f, Style("Calibri", snap(size), false, false, 0)))
+                                }.sortedWith(compareBy({ it.base }, { it.x0 }))
+                                pics = pics.filter { it.wPt * it.hPt < area * 0.25f }
                             }
                         }
                     }
-                    pages += PageData(pw, ph, finalLines, finalPics)
+                    picBytes += pics.sumOf { it.bytes.size.toLong() }
+                    pages += PageData(pw, ph, finalLines, pics)
                     report((i + 1f) / n * 0.85f)
                 }
             }
         } finally { view?.close() }
-        if (pages.all { it.lines.isEmpty() && it.pics.isEmpty() }) {
-            throw ToolError("No text found. This looks like a scanned PDF; turn on \"Read scanned pages\" or try Exact look.")
-        }
+        if (pages.all { it.lines.isEmpty() && it.pics.isEmpty() }) throw ToolError("No text found in this PDF.")
+
         // Body text size = the most common size, weighted by characters.
-        val bodySize = pages.flatMap { it.lines }.flatMap { it.words }
-            .groupBy { (it.style.size * 2).toInt() }.maxByOrNull { (_, ws) -> ws.sumOf { it.text.length } }?.key?.div(2f) ?: 11f
-        val bodyFont = pages.flatMap { it.lines }.flatMap { it.words }
-            .groupBy { it.style.font }.maxByOrNull { (_, ws) -> ws.sumOf { it.text.length } }?.key ?: "Calibri"
+        val allWords = pages.flatMap { it.lines }.flatMap { it.words }
+        val bodySize = allWords.groupBy { (it.style.size * 2).toInt() }.maxByOrNull { (_, ws) -> ws.sumOf { it.text.length } }?.key?.div(2f) ?: 11f
+        val bodyFont = allWords.groupBy { it.style.font }.maxByOrNull { (_, ws) -> ws.sumOf { it.text.length } }?.key ?: "Calibri"
+
+        val first = pages.first()
+        val mLeft = (first.lines.minOfOrNull { it.x0 } ?: 72f).coerceIn(18f, 108f)
+        val mRight = (first.w - (first.lines.maxOfOrNull { it.x1 } ?: (first.w - 72f))).coerceIn(18f, 108f)
+        val mTop = (first.lines.minOfOrNull { it.base - it.size } ?: 72f).coerceIn(18f, 108f)
+        val mBottom = 54f
+        val tw = { v: Float -> (v * 20).toInt() }
+        fun sectPara(cols: Int, space: Float) =
+            "<w:p><w:pPr><w:sectPr><w:type w:val=\"continuous\"/><w:pgSz w:w=\"${tw(first.w)}\" w:h=\"${tw(first.h)}\"/>" +
+                "<w:pgMar w:top=\"${tw(mTop)}\" w:right=\"${tw(mRight)}\" w:bottom=\"${tw(mBottom)}\" w:left=\"${tw(mLeft)}\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/>" +
+                "<w:cols w:num=\"$cols\" w:space=\"${tw(space)}\"/></w:sectPr></w:pPr></w:p>"
 
         val body = StringBuilder()
         val media = ArrayList<ByteArray>()
-        pages.forEachIndexed { pi, pg ->
-            if (pi > 0) body.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>")
-            val colLeft = pg.lines.minOfOrNull { it.x0 } ?: 0f
-            val colRight = pg.lines.maxOfOrNull { it.x1 } ?: pg.w
-            val blocks = layout(pg.lines) + pg.pics.map { Image(it) }
+        var sinceSection = false
+        fun emit(lines: List<Line>, pics: List<Pic>, colLeft: Float, colRight: Float) {
+            val blocks = layout(lines) + pics.map { Image(it) }
             blocks.sortedBy { it.top }.forEach { b ->
                 when (b) {
                     is Para -> body.append(paraXml(b, colLeft, colRight, bodySize))
                     is Table -> body.append(tableXml(b, colRight - colLeft))
                     is Image -> {
                         media += b.pic.bytes
-                        val maxW = (colRight - colLeft).coerceAtLeast(pg.w * 0.6f)
+                        val maxW = (colRight - colLeft).coerceAtLeast(60f)
                         val s = minOf(1f, maxW / b.pic.wPt)
-                        body.append(drawingXml(media.size, (b.pic.wPt * s * 12700).toLong(), (b.pic.hPt * s * 12700).toLong(), center = true))
+                        val picR = b.pic.x0 + b.pic.wPt
+                        val jc = when {
+                            b.pic.x0 - colLeft < 12f && picR < colRight - 24f -> null
+                            colRight - picR < 12f && b.pic.x0 > colLeft + 24f -> "right"
+                            else -> "center"
+                        }
+                        body.append(drawingXml(media.size, (b.pic.wPt * s * 12700).toLong(), (b.pic.hPt * s * 12700).toLong(), jc))
+                    }
+                }
+                sinceSection = true
+            }
+        }
+        pages.forEachIndexed { pi, pg ->
+            if (pi > 0) { body.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>"); sinceSection = true }
+            val zones = zones(pg.lines, pg.w)
+            val pageLeft = pg.lines.minOfOrNull { it.x0 } ?: mLeft
+            val pageRight = pg.lines.maxOfOrNull { it.x1 } ?: (pg.w - mRight)
+            // Each picture goes to the zone it sits in (by its top), and to the column it sits over.
+            val zonePics = zones.map { ArrayList<Pic>() }
+            pg.pics.forEach { p ->
+                val idx = zones.indexOfFirst { p.top < it.bottom }.let { if (it < 0) zones.lastIndex else it }
+                if (idx >= 0) zonePics[idx] += p
+            }
+            if (zones.isEmpty()) emit(emptyList(), pg.pics, pageLeft, pageRight)
+            zones.forEachIndexed { zi, z ->
+                when (z) {
+                    is Full -> emit(z.lines, zonePics[zi], pageLeft, pageRight)
+                    is Cols -> {
+                        if (sinceSection) body.append(sectPara(1, 36f))
+                        val lL = z.left.minOf { it.x0 }; val lR = z.left.maxOf { it.x1 }
+                        val rL = z.right.minOf { it.x0 }; val rR = z.right.maxOf { it.x1 }
+                        val g = (lR + rL) / 2f
+                        val (lp, rp) = zonePics[zi].partition { it.x0 + it.wPt / 2f < g }
+                        emit(z.left, lp, lL, lR)
+                        body.append("<w:p><w:r><w:br w:type=\"column\"/></w:r></w:p>")
+                        emit(z.right, rp, rL, rR)
+                        body.append(sectPara(2, (rL - lR).coerceIn(12f, 72f)))
+                        sinceSection = false
                     }
                 }
             }
         }
-        val first = pages.first()
-        val left = (first.lines.minOfOrNull { it.x0 } ?: 72f).coerceIn(18f, 108f)
-        val right = (first.w - (first.lines.maxOfOrNull { it.x1 } ?: (first.w - 72f))).coerceIn(18f, 108f)
-        val top = ((first.lines.minOfOrNull { it.base - it.size } ?: 72f)).coerceIn(18f, 108f)
-        writeDocx(out, body.toString(), media, first.w, first.h, top, 54f, left, right, bodyFont, bodySize)
+        writeDocx(out, body.toString(), media, first.w, first.h, mTop, mBottom, mLeft, mRight, bodyFont, bodySize)
         report(1f)
         return pages.size
     }
 
-    private suspend fun exactLook(src: File, out: File, report: (Float) -> Unit): Int {
-        val view = (PdfDoc.open(src) as? PdfDoc.Open.Ok)?.doc ?: throw ToolError("Can't read this PDF. If it has a password, unlock it first.")
-        try {
-            val body = StringBuilder()
-            val media = ArrayList<ByteArray>()
-            val n = view.pageCount
-            val firstRatio = view.ratios.firstOrNull() ?: 0.707f
-            val pageW = 595f; val pageH = pageW / firstRatio
-            for (i in 0 until n) {
-                coroutineContext.ensureActive()
-                val bmp = view.render(i, 1500) ?: continue
-                val bos = ByteArrayOutputStream()
-                flatten(bmp).compress(Bitmap.CompressFormat.JPEG, 86, bos)
-                media += bos.toByteArray()
-                val ratio = bmp.width.toFloat() / bmp.height
-                var w = pageW; var h = w / ratio
-                if (h > pageH) { h = pageH; w = h * ratio }
-                if (i > 0) body.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>")
-                body.append(drawingXml(media.size, (w * 12700).toLong(), (h * 12700).toLong(), center = true))
-                report((i + 1f) / n * 0.95f)
+    /** Body sizes like 10.9 or 11.2 become 11, so Word shows tidy sizes. */
+    private fun snap(size: Float): Float = (Math.round(size * 2f) / 2f)
+
+    /** OCR gives a line of text and its box; spread the words across the box so columns can be found. */
+    private fun splitOcrWords(text: String, x0: Float, x1: Float, base: Float, st: Style): List<Word> {
+        val parts = text.split(' ').filter { it.isNotEmpty() }
+        if (parts.size <= 1) return listOf(Word(text, x0, x1, base, st))
+        val total = parts.sumOf { it.length } + parts.size - 1
+        val per = (x1 - x0) / total
+        var x = x0
+        return parts.map { w -> val wx1 = x + w.length * per; Word(w, x, wx1, base, st).also { x = wx1 + per } }
+    }
+
+    // ---------- columns ----------
+
+    /** Splits a page into full-width parts and two-column parts. */
+    private fun zones(lines: List<Line>, pw: Float): List<Zone> {
+        if (lines.isEmpty()) return emptyList()
+        val g = gutter(lines, pw) ?: return listOf(Full(lines))
+        val raw = ArrayList<Zone>()
+        var full = ArrayList<Line>(); var l = ArrayList<Line>(); var r = ArrayList<Line>(); var all = ArrayList<Line>()
+        fun flushCols() { if (all.isNotEmpty()) { raw += Cols(l, r, all); l = ArrayList(); r = ArrayList(); all = ArrayList() } }
+        fun flushFull() { if (full.isNotEmpty()) { raw += Full(full); full = ArrayList() } }
+        lines.forEach { line ->
+            if (line.words.any { it.x0 < g - 1f && it.x1 > g + 1f }) { flushCols(); full += line }
+            else {
+                flushFull()
+                val (a, b) = line.words.partition { (it.x0 + it.x1) / 2f < g }
+                if (a.isNotEmpty()) l += Line(a)
+                if (b.isNotEmpty()) r += Line(b)
+                all += line
             }
-            writeDocx(out, body.toString(), media, pageW, pageH + 2f, 0f, 0f, 0f, 0f, "Calibri", 11f)
-            report(1f)
-            return n
-        } finally { view.close() }
+        }
+        flushCols(); flushFull()
+        // Short two-sided bits (a date on the right of a name, say) stay as normal lines.
+        val out = ArrayList<Zone>()
+        raw.forEach { z ->
+            val zz = if (z is Cols && (z.left.size < 3 || z.right.size < 3)) Full(z.all) else z
+            val last = out.lastOrNull()
+            if (zz is Full && last is Full) out[out.lastIndex] = Full(last.lines + zz.lines) else out += zz
+        }
+        return out
+    }
+
+    /** The x of an empty vertical strip between two columns of flowing text, or null for one-column pages. */
+    private fun gutter(lines: List<Line>, pw: Float): Float? {
+        if (lines.size < 8) return null
+        val n = pw.toInt() + 2
+        val cov = IntArray(n)
+        val mark = BooleanArray(n)
+        lines.forEach { line ->
+            java.util.Arrays.fill(mark, false)
+            line.words.forEach { w -> for (x in w.x0.toInt().coerceIn(0, n - 1)..w.x1.toInt().coerceIn(0, n - 1)) mark[x] = true }
+            for (x in 0 until n) if (mark[x]) cov[x]++
+        }
+        val allowed = maxOf(1, (lines.size * 0.08f).toInt())
+        var best = -1; var bestLen = 0; var runStart = -1
+        val from = (pw * 0.3f).toInt(); val to = (pw * 0.7f).toInt()
+        for (x in from..to + 1) {
+            val free = x <= to && cov[x] <= allowed
+            if (free && runStart < 0) runStart = x
+            if (!free && runStart >= 0) { val len = x - runStart; if (len > bestLen) { bestLen = len; best = runStart + len / 2 }; runStart = -1 }
+        }
+        if (bestLen < 8) return null
+        val g = best.toFloat()
+        val both = lines.filter { l -> l.words.any { it.x1 < g } && l.words.any { it.x0 > g } }
+        if (both.size < maxOf(6, (lines.size * 0.3f).toInt())) return null
+        // Both sides must be flowing text that fills its column, not labels and values.
+        val leftMin = lines.minOf { it.x0 }; val rightMax = lines.maxOf { it.x1 }
+        val lw = both.map { l -> l.words.filter { it.x1 < g }.let { ws -> ws.maxOf { it.x1 } - ws.minOf { it.x0 } } }.sorted()
+        val rw = both.map { l -> l.words.filter { it.x0 > g }.let { ws -> ws.maxOf { it.x1 } - ws.minOf { it.x0 } } }.sorted()
+        if (lw[lw.size / 2] < (g - leftMin) * 0.6f || rw[rw.size / 2] < (rightMax - g) * 0.6f) return null
+        return g
     }
 
     // ---------- reading ----------
 
-    private fun readLines(doc: com.tom_roush.pdfbox.pdmodel.PDDocument, index: Int, colors: IdentityHashMap<TextPosition, Int>): List<Line> {
+    /** Lines of words on a page, and the share of text that is invisible (an OCR layer over a scan). */
+    private fun readLines(doc: com.tom_roush.pdfbox.pdmodel.PDDocument, index: Int, colors: IdentityHashMap<TextPosition, Int>): Pair<List<Line>, Float> {
         val lines = ArrayList<Line>()
         var cur = ArrayList<Word>()
+        var total = 0
+        var hidden = 0
         val stripper = object : PDFTextStripper() {
             init {
                 // The text stripper skips color operators; add them so each word knows its color.
@@ -197,7 +303,12 @@ object PdfToWord {
             }
 
             override fun processTextPosition(text: TextPosition?) {
-                if (text != null) colors[text] = runCatching { graphicsState.nonStrokingColor.toRGB() }.getOrDefault(0)
+                if (text != null) {
+                    colors[text] = runCatching { graphicsState.nonStrokingColor.toRGB() }.getOrDefault(0)
+                    total++
+                    val mode = runCatching { graphicsState.textState.renderingMode }.getOrNull()
+                    if (mode != null && !mode.isFill && !mode.isStroke) hidden++
+                }
                 super.processTextPosition(text)
             }
 
@@ -224,7 +335,7 @@ object PdfToWord {
         stripper.endPage = index + 1
         runCatching { stripper.getText(doc) }
         if (cur.isNotEmpty()) lines += Line(cur)
-        return lines.sortedWith(compareBy({ it.base }, { it.x0 }))
+        return lines.sortedWith(compareBy({ it.base }, { it.x0 })) to (if (total == 0) 0f else hidden.toFloat() / total)
     }
 
     private fun styleOf(p: TextPosition, color: Int): Style {
@@ -235,7 +346,11 @@ object PdfToWord {
         val bold = "bold" in lower || "black" in lower || "heavy" in lower || "semibold" in lower || weight >= 600f ||
             runCatching { f?.fontDescriptor?.isForceBold == true }.getOrDefault(false)
         val italic = "italic" in lower || "oblique" in lower || runCatching { f?.fontDescriptor?.isItalic == true }.getOrDefault(false)
-        return Style(familyName(raw), (p.fontSizeInPt.takeIf { it > 0f } ?: p.heightDir).coerceIn(4f, 96f), bold, italic, color and 0xFFFFFF)
+        var rgb = color and 0xFFFFFF
+        // Light text was drawn on a dark box or picture that Word won't have; make it readable.
+        val lum = (0.299f * (rgb shr 16 and 255) + 0.587f * (rgb shr 8 and 255) + 0.114f * (rgb and 255)) / 255f
+        if (lum > 0.85f) rgb = 0
+        return Style(familyName(raw), snap((p.fontSizeInPt.takeIf { it > 0f } ?: p.heightDir).coerceIn(4f, 96f)), bold, italic, rgb)
     }
 
     /** "ABCDEF+TimesNewRomanPS-BoldMT" -> "Times New Roman". */
@@ -279,7 +394,8 @@ object PdfToWord {
                         val wPt = abs(m.scalingFactorX); val hPt = abs(m.scalingFactorY)
                         if (wPt >= 40f && hPt >= 30f) runCatching {
                             val top = pageH - (m.translateY - box.lowerLeftY + hPt)
-                            jpeg(x)?.let { (bytes, w, h) -> found += Pic(bytes, w, h, top, wPt, hPt) }
+                            val x0 = m.translateX - box.lowerLeftX
+                            jpeg(x)?.let { (bytes, w, h) -> found += Pic(bytes, w, h, top, wPt, hPt, x0) }
                         }
                         return
                     }
@@ -387,7 +503,13 @@ object PdfToWord {
         val pPr = StringBuilder("<w:pPr>")
         if (heading > 0) pPr.append("<w:pStyle w:val=\"Heading$heading\"/>")
         val before = (p.spaceBefore - size * 0.6f).coerceIn(0f, 36f)
-        pPr.append("<w:spacing w:before=\"${(before * 20).toInt()}\" w:after=\"0\"/>")
+        // Line spacing from the gap between lines; Word's "single" is about 1.17 x the font size.
+        val lineAttr = if (p.lines.size >= 2) {
+            val gap = (p.lines.last().base - first.base) / (p.lines.size - 1)
+            val mult = (gap / (size * 1.17f)).coerceIn(1f, 2.5f)
+            if (mult > 1.08f) " w:line=\"${(mult * 240).toInt()}\" w:lineRule=\"auto\"" else ""
+        } else ""
+        pPr.append("<w:spacing w:before=\"${(before * 20).toInt()}\" w:after=\"0\"$lineAttr/>")
         if (!centered && !right) {
             val left = ((p.lines.drop(1).minOfOrNull { it.x0 } ?: first.x0) - colLeft).coerceAtLeast(0f)
             val firstLine = first.x0 - colLeft - left
@@ -464,8 +586,8 @@ object PdfToWord {
         return sb.toString()
     }
 
-    private fun drawingXml(n: Int, wEmu: Long, hEmu: Long, center: Boolean): String =
-        "<w:p>" + (if (center) "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" else "") +
+    private fun drawingXml(n: Int, wEmu: Long, hEmu: Long, jc: String?): String =
+        "<w:p>" + (if (jc != null) "<w:pPr><w:jc w:val=\"$jc\"/></w:pPr>" else "") +
             "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"$wEmu\" cy=\"$hEmu\"/><wp:docPr id=\"$n\" name=\"Picture $n\"/>" +
             "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
             "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"$n\" name=\"image$n.jpg\"/><pic:cNvPicPr/></pic:nvPicPr>" +

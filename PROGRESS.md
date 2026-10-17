@@ -43,6 +43,10 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 19** - Opens Word files in-app (`ui/viewer/DocViews.kt`: docx laid out to a cached PDF in cache/docview, read-only pages, Save as PDF / Open in Word) and images (Convert to PDF, Copy text via `OcrInput`). Open-with / share filters for .docx and images; importer accepts them; Files "Word" filter. Add Margins tool (`PdfTools.addMargins`: grow pages or keep size and shrink content; all or chosen pages; per-side mm; live preview).
 - [x] **Batch 20** - Rebuilt PDF to Word (`pdf/PdfToWord.kt`): per-word font/size/bold/italic/color (color operators added to the stripper), headings (Heading1/2 styles), centered/right/justified, indents and bullets, paragraph joining by gaps, simple tables from aligned columns, pictures placed in reading order (PDFStreamEngine image finder), page size and margins from the PDF, OCR for scanned pages, "Exact look" mode (pages as pictures). Old `WordTools.pdfToDocx` kept but unused.
 - [x] **Batch 21** - Compress simplified: one screen, no mode switch. Four size chips (100 KB, 200 KB, 500 KB, 1 MB) plus an always-visible size box with KB/MB, and the Black and white switch. Chips fill the box. Removed the By-quality mode and the hidden Custom chip.
+- [x] **Batch 22** - PDF to Word is editable text only (like iLovePDF): page backgrounds and scan images are dropped (images > 50% of the page, > 25% when the text is a hidden OCR layer or the page was OCR'd), scanned pages always OCR'd (2000 px), "Exact look" mode and the OCR switch removed. Two-column pages become Word columns (gutter finder + continuous sections), line spacing from line gaps, sizes snapped to 0.5 pt, near-white text made dark, pictures aligned left/center/right.
+- [ ] Batch 23 - New scan filters (Auto shadow removal, Grayscale, B&W adaptive).
+- [ ] Batch 24 - Scanner review screen (filters per page/all, rotate, delete, reorder, add pages).
+- [ ] Batch 25 - Design consistency pass.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
 ## Log
