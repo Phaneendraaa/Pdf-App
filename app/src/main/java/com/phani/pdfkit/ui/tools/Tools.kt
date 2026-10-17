@@ -80,6 +80,7 @@ object ToolCatalog {
         Tool("rotate", "Rotate PDF", "Rotate pages left or right", PkIcons.Rotate, BLUE, BLUE_T, "Organize"),
         Tool("reorder", "Reorder Pages", "Change page order", PkIcons.Reorder, TEAL, TEAL_T, "Organize"),
         Tool("edittext", "Edit PDF Text", "Change existing text in a PDF", PkIcons.Edit, BLUE, BLUE_T, "Edit", isNew = true),
+        Tool("fillform", "Fill Form", "Fill in a fillable PDF form", PkIcons.Pencil, GREEN, GREEN_T, "Edit", isNew = true),
         Tool("text", "Add Text", "Add new text anywhere on a page", PkIcons.TextT, BLUE, BLUE_T, "Edit"),
         Tool("sign", "Sign PDF", "Draw or place your signature", PkIcons.Signature, VIOLET, VIOLET_T, "Edit"),
         Tool("watermark", "Watermark", "Stamp text on every page", PkIcons.Droplet, SKY, SKY_T, "Edit"),

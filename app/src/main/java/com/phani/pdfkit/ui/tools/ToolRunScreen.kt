@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "fillform", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -134,6 +134,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     val action = when (key) {
         "merge" -> if (selected.size >= 2) "Merge ${selected.size} PDFs" else "Pick at least 2 PDFs"
         "edittext" -> "Open editor"
+        "fillform" -> "Open form"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
         "compress" -> "Compress PDF"
@@ -272,7 +273,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             if (first != null) PageOrganizer(first, pageOrder)
                         }
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
-                        "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. Your edits are saved as a new copy; the original stays untouched. Works on text PDFs, not scans.")
+                        "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. When you save, choose to update this PDF or keep a new copy. Works on text PDFs, not scans.")
+                        "fillform" -> Hint("Tap a blue field to type, pick or tick it. Autofill uses details saved only on your phone. Works on fillable forms; for other PDFs you can type anywhere on the page.")
                         "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over; tables, columns and images don't. Scanned PDFs need Text Recognition first.")
                         "word2pdf" -> Hint("Converts text, headings, bold and page breaks. Tables and images aren't included yet.")
                     }
@@ -284,6 +286,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
             PrimaryButton(action, enabled = ready) {
                 val src = selected.toList()
                 if (key == "edittext") { onEdit(src.first().absolutePath); return@PrimaryButton }
+                if (key == "fillform") { onEdit("form:" + src.first().absolutePath); return@PrimaryButton }
                 val again = "tool/$key"
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library

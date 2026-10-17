@@ -66,6 +66,20 @@ class Prefs(private val context: Context) {
 
     suspend fun markHint(id: String) = context.store.edit { it[K.hints] = (it[K.hints] ?: emptySet()) + id }
 
+    private val autofillKey = stringPreferencesKey("autofill")
+
+    /** Details the user saved for filling forms, e.g. "Email" to an address. Only non-empty ones. */
+    suspend fun autofill(): Map<String, String> = runCatching {
+        val o = org.json.JSONObject(context.store.data.first()[autofillKey] ?: "{}")
+        com.phani.pdfkit.pdf.Autofill.KEYS.associateWith { o.optString(it, "") }.filterValues { it.isNotBlank() }
+    }.getOrDefault(emptyMap())
+
+    suspend fun setAutofill(m: Map<String, String>) = context.store.edit { p ->
+        val o = org.json.JSONObject()
+        m.forEach { (k, v) -> if (v.isNotBlank()) o.put(k, v.trim()) }
+        p[autofillKey] = o.toString()
+    }
+
     private val lastPagesKey = stringPreferencesKey("last_pages")
 
     /** Last page (0-based) the user was reading in [path], or 0. */

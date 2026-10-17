@@ -26,7 +26,7 @@ data class LinkBox(val box: Frac, val uri: String?, val page: Int)
 data class Bookmark(val title: String, val page: Int, val level: Int)
 
 /** Links and bookmarks read from the file in one pass. */
-data class PdfMeta(val links: Map<Int, List<LinkBox>>, val outline: List<Bookmark>)
+data class PdfMeta(val links: Map<Int, List<LinkBox>>, val outline: List<Bookmark>, val hasForm: Boolean = false)
 
 /** Text of one page with a box for every character, used by search. */
 class PageText(
@@ -150,17 +150,10 @@ object PdfIndex {
             if (total > 2000) break
             val page = doc.getPage(i)
             val found = ArrayList<LinkBox>()
-            val box = page.cropBox
-            val rot = rotationOf(page)
             for (a in runCatching { page.annotations }.getOrDefault(emptyList())) {
                 if (a !is PDAnnotationLink) continue
                 val rc = a.rectangle ?: continue
-                val bw = box.width.coerceAtLeast(1f); val bh = box.height.coerceAtLeast(1f)
-                val x0 = (rc.lowerLeftX - box.lowerLeftX) / bw
-                val x1 = (rc.upperRightX - box.lowerLeftX) / bw
-                val y0 = 1f - (rc.upperRightY - box.lowerLeftY) / bh
-                val y1 = 1f - (rc.lowerLeftY - box.lowerLeftY) / bh
-                val rect = rotate(x0, y0, x1, y1, rot)
+                val rect = fracOf(page, rc)
                 var uri: String? = null
                 var target = -1
                 runCatching {
@@ -174,7 +167,19 @@ object PdfIndex {
             }
             if (found.isNotEmpty()) { links[i] = found; total += found.size }
         }
-        PdfMeta(links, outline(doc))
+        val form = runCatching { doc.documentCatalog.acroForm?.fields?.isNotEmpty() == true }.getOrDefault(false)
+        PdfMeta(links, outline(doc), form)
+    }
+
+    /** Where an annotation rectangle sits on the page as displayed, as fractions of the page. */
+    internal fun fracOf(page: PDPage, rc: com.tom_roush.pdfbox.pdmodel.common.PDRectangle): Frac {
+        val box = page.cropBox
+        val bw = box.width.coerceAtLeast(1f); val bh = box.height.coerceAtLeast(1f)
+        val x0 = (rc.lowerLeftX - box.lowerLeftX) / bw
+        val x1 = (rc.upperRightX - box.lowerLeftX) / bw
+        val y0 = 1f - (rc.upperRightY - box.lowerLeftY) / bh
+        val y1 = 1f - (rc.lowerLeftY - box.lowerLeftY) / bh
+        return rotate(x0, y0, x1, y1, rotationOf(page))
     }
 
     private fun rotationOf(page: PDPage?): Int = (((page?.rotation ?: 0) % 360) + 360) % 360

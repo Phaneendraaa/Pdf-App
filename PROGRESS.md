@@ -32,6 +32,10 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 7** - Onboarding slides, quick tour, contextual hints, sample PDF, permission explainer.
 - [x] **Batch 8** - Share target + "Open with", shortcuts, undo delete, rate prompt, haptics, empty states, dark mode.
 - [x] **Batch 9** - Gemini Nano: Summarize, Smart rename.
+- [x] **Batch 11** - Viewer upgrades: search in PDF (highlighted hits, prev/next), clickable links, bookmarks tab in Pages sheet, select and copy text, remember last page. Editor Save asks "Update this PDF" or "Save as a new copy".
+- [x] **Batch 12** - Fill forms: AcroForm fields (text, checkbox, radio, dropdown), autofill details saved on the phone (Settings > Autofill details), flatten or keep editable, Update/New copy.
+- [ ] **Batch 13** - Searchable OCR PDF output + scan filters.
+- [ ] **Batch 14** - Crop pages, page numbers on all pages in one go, print, better Word conversion (tables/images), "Replace original" for tool results.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 
 ## Log
@@ -49,6 +53,9 @@ Update it in the same commit as the work it describes.
 - Batch 7: onboarding slides, 5-step quick tour, first-use hints, sample PDF, camera explainer before first scan. MainActivity waits for saved settings before drawing (no onboarding flash).
 
 ## Code map
+
+- Batch 11/12 files: `pdf/PdfIndex.kt` (search index with per-character boxes, links, bookmarks, `fracOf` for annotation rects), `pdf/FormFill.kt` (read/apply AcroForm, `Autofill` guesses which saved detail a field wants), `ui/forms/FormFiller.kt` (+ `AutofillSheet`), viewer pieces in `ui/viewer/ViewerScreen.kt` (SearchBar, CopyTextSheet, link overlay, "Fill form" pill). `Library.tempFile()/replaceWith()` write an edit then swap it over the original. `Prefs.lastPage/setLastPage`, `Prefs.autofill/setAutofill`.
+- Rule: edits never leave extra copies unless the user picks "Save as a new copy".
 
 - `PdfKitApp.kt` - Application + `Graph` (Library, Prefs singletons).
 - `data/Library.kt` - files live in `getExternalFilesDir()/Pdf Kit`; soft delete + undo, rename, unique names. `Fmt` formatting.
@@ -74,6 +81,8 @@ Update it in the same commit as the work it describes.
 - `util/` - `FileShare` (share, open external, save to Downloads), `Importer`, `PdfThumbs`, `Store`.
 
 ## Next step
+
+Needed-8 plan (agreed 17 Oct): batches 11 and 12 done; next 13 (OCR text layer + scan filters), 14 (crop, page numbers in one go, print, Word tables/images, Replace original on tool results). Then Batch 10 hardening. Older notes below.
 
 Edit existing PDF text (major requirement), in 3 parts:
 - [x] Part 1: engine `pdf/TextEdit.kt` - `read(file, page)` returns text lines (`TextBlock`: position as page fractions, baseline, size, bold/italic, family) via a PDFTextStripper subclass; `applyTo(doc, page, ops)` covers each old line with its sampled background color and writes the new text on the same baseline with a matching standard-14 font (Roboto Type0 fallback for wider Unicode). `PageEdits.apply(..., textEdits)` runs it before ink/marks.

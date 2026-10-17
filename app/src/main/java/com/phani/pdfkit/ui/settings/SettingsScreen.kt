@@ -87,6 +87,8 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             SRow(PkIcons.Sliders, "Compression quality", value = settings.compression) { sheet = "comp" }
             Divider()
             SRow(PkIcons.Palette, "Theme", value = settings.theme) { sheet = "theme" }
+            Divider()
+            SRow(PkIcons.Pencil, "Autofill details", sub = "Name, email and phone for forms") { sheet = "autofill" }
         }
         Group("Security") {
             SRow(PkIcons.Lock, "App lock", sub = "Fingerprint or PIN to open", trailing = { Switch(settings.appLock) }) {
@@ -121,6 +123,7 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
                 ChoiceOption(v, s, settings.compression == v) { scope.launch { Graph.prefs.setCompression(v) }; sheet = null }
             }
         }
+        "autofill" -> com.phani.pdfkit.ui.forms.AutofillSheet({ sheet = null })
         "theme" -> PkSheet({ sheet = null }, "Theme") {
             listOf("Light" to "Clean white interface", "Dark" to "Easier on the eyes at night", "System" to "Match your phone setting").forEach { (v, s) ->
                 ChoiceOption(v, s, settings.theme == v) { scope.launch { Graph.prefs.setTheme(v) }; sheet = null }

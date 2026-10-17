@@ -259,7 +259,12 @@ private fun Pages(
     }
 
     tool?.let { t ->
-        com.phani.pdfkit.ui.edit.PageEditor(
+        if (t == "form") com.phani.pdfkit.ui.forms.FormFiller(
+            pdf = pdf, file = file, startPage = current - 1,
+            onClose = { tool = null },
+            onSaved = { out -> tool = null; onReplace(out.absolutePath) },
+            onNoFields = { tool = "text" },
+        ) else com.phani.pdfkit.ui.edit.PageEditor(
             pdf = pdf, file = file, page = current - 1, initialTool = t,
             onClose = { tool = null },
             onSaved = { out -> tool = null; onReplace(out.absolutePath) },
@@ -319,6 +324,17 @@ private fun Pages(
                 "$current / ${pdf.pageCount}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(12.dp).clip(RoundedCornerShape(99.dp)).background(Color(0x8C101217)).padding(horizontal = 12.dp, vertical = 5.dp),
             )
+        }
+        AnimatedVisibility(
+            meta?.hasForm == true && !searching, modifier = Modifier.align(Alignment.TopStart), enter = fadeIn(), exit = fadeOut(),
+        ) {
+            Row(
+                Modifier.padding(12.dp).clip(RoundedCornerShape(99.dp)).background(c.blue).clickable { tool = "form" }.padding(horizontal = 14.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(PkIcons.Pencil, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Text("Fill form", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 6.dp))
+            }
         }
         AnimatedVisibility(
             searching, modifier = Modifier.align(Alignment.TopCenter),

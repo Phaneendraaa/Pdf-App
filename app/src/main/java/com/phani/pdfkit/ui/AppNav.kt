@@ -193,7 +193,7 @@ fun PdfKitApp(settings: Settings) {
                     presetPath = e.arguments?.getString("path")?.ifBlank { null },
                     onBack = { nav.popBackStack() },
                     onStart = { nav.navigate(Routes.PROCESSING) },
-                    onEdit = { p -> nav.navigate(Routes.viewer(p, "edit")) { popUpTo(Routes.MAIN) } },
+                    onEdit = { p -> nav.navigate(if (p.startsWith("form:")) Routes.viewer(p.removePrefix("form:"), "form") else Routes.viewer(p, "edit")) { popUpTo(Routes.MAIN) } },
                 )
             }
         }
