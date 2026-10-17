@@ -106,6 +106,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     val comp = remember { CompressState() }
     val num = remember { NumberState() }
     val marg = remember { MarginState() }
+    var wordMode by remember { mutableStateOf("Editable") }
+    var wordOcr by remember { mutableStateOf(true) }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var imgQuality by remember { mutableStateOf("Normal") }
@@ -280,7 +282,14 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         "searchable" -> Hint("Reads the text in your scanned pages and hides a copy behind the picture, so you can search and copy it. English and other Latin-script text. Takes a few seconds per page.")
                         "crop" -> Hint("Drag the corners or sides of the frame, then crop one page or all pages at once. What you cut off is hidden, not erased.")
                         "fillform" -> Hint("Tap a blue field to type, pick or tick it. Autofill uses details saved only on your phone. Works on fillable forms; for other PDFs you can type anywhere on the page.")
-                        "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over, and pictures are added after each page's text. Tables and columns don't carry over. Scanned PDFs need Make Searchable or Text Recognition first.")
+                        "pdf2word" -> {
+                            Label("Output")
+                            Segmented(listOf("Editable", "Exact look"), wordMode) { wordMode = it }
+                            if (wordMode == "Editable") {
+                                SwitchRow("Read scanned pages", "Turns text in scans into editable words (English and other Latin-script text)", wordOcr) { wordOcr = it }
+                                Hint("Keeps fonts, sizes, bold, colors, headings, centered text, bullets, simple tables and pictures. You can edit everything in Word or Google Docs.")
+                            } else Hint("Every page looks exactly like the PDF but becomes a picture in Word, so text can't be edited. Best for designed pages, certificates and forms.")
+                        }
                         "word2pdf" -> Hint("Converts text, headings, bold, page breaks, simple tables and pictures. Fancy layouts, columns and text boxes are simplified.")
                     }
                 }
@@ -297,11 +306,11 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library
                 when (key) {
-                    "pdf2word" -> ActiveJob.set("PDF to Word", "Converting to Word...", listOf("Reading text", "Building paragraphs", "Saving .docx")) { r ->
+                    "pdf2word" -> { val exactMode = wordMode == "Exact look"; val ocrOn = wordOcr; ActiveJob.set("PDF to Word", "Converting to Word...", listOf("Reading text", "Building paragraphs", "Saving .docx")) { r ->
                         val out = lib.newFile(base(), "docx")
-                        val n = try { com.phani.pdfkit.pdf.WordTools.pdfToDocx(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
+                        val n = try { com.phani.pdfkit.pdf.PdfToWord.convert(src.first(), out, exactMode, ocrOn, r) } catch (e: Exception) { out.delete(); throw e }
                         JobResult(out, n, "Word file created!", detail = "${Fmt.size(out.length())} · .docx · opens in Word or Google Docs", again = again, againLabel = "Convert another PDF")
-                    }
+                    } }
                     "word2pdf" -> ActiveJob.set("Word to PDF", "Converting to PDF...", listOf("Reading document", "Laying out pages", "Saving PDF")) { r ->
                         val out = lib.newFile(base())
                         val n = try { com.phani.pdfkit.pdf.WordTools.docxToPdf(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
