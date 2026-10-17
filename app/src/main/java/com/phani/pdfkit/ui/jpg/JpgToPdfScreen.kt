@@ -230,6 +230,8 @@ fun JpgToPdfScreen(settings: Settings, onBack: () -> Unit, onCreate: () -> Unit)
                     Segmented(listOf("None", "Small", "Large"), opts.margin) { JpgDraft.options = opts.copy(margin = it) }
                     Label("Orientation")
                     Segmented(listOf("Portrait", "Landscape"), opts.orientation) { JpgDraft.options = opts.copy(orientation = it) }
+                    Label("Look")
+                    Segmented(com.phani.pdfkit.pdf.Filters.NAMES, opts.filter) { JpgDraft.options = opts.copy(filter = it) }
                 }
             }
             Spacer(Modifier.height(18.dp))

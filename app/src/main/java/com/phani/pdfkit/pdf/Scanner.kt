@@ -21,6 +21,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.phani.pdfkit.Graph
 import com.phani.pdfkit.ui.components.Toaster
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -63,17 +64,28 @@ fun rememberScanner(onSaved: (JobResult) -> Unit): () -> Unit {
         val pdf = res?.pdf ?: return@rememberLauncherForActivityResult
         scope.launch {
             val job = DocScanner.save(ctx, pdf.uri, pdf.pageCount)
-            if (job != null) { Graph.prefs.bumpSuccess(); onSaved(job) } else Toaster.show("Couldn't save the scan")
+            if (job != null) {
+                Graph.prefs.bumpSuccess(); onSaved(job)
+                if (Graph.prefs.settings.first().searchableScans) SearchablePdf.inBackground(job.file)
+            } else Toaster.show("Couldn't save the scan")
         }
     }
     return { (ctx as? Activity)?.let { DocScanner.start(it, launcher) } }
 }
+
+/** A recognized line of text and its box in the bitmap, in pixels. */
+data class OcrLine(val text: String, val left: Int, val top: Int, val right: Int, val bottom: Int)
 
 /** On-device text recognition (Latin script). */
 object Ocr {
     private val client by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
     suspend fun read(bitmap: Bitmap): String = client.process(InputImage.fromBitmap(bitmap, 0)).await().text
+
+    suspend fun lines(bitmap: Bitmap): List<OcrLine> =
+        client.process(InputImage.fromBitmap(bitmap, 0)).await().textBlocks.flatMap { b ->
+            b.lines.mapNotNull { l -> l.boundingBox?.let { OcrLine(l.text, it.left, it.top, it.right, it.bottom) } }
+        }
 
     suspend fun read(context: Context, uri: Uri): String = client.process(InputImage.fromFilePath(context, uri)).await().text
 }

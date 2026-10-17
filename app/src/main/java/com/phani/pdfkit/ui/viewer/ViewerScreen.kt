@@ -350,7 +350,7 @@ private fun Pages(
                 }
                 SearchBar(query, { query = it }, status, { step(-1) }, { step(1) }, onSearchClose)
                 if (idx != null && idx.all { it.text.isBlank() }) Text(
-                    "No searchable text. This looks like a scanned PDF.", color = c.ink2, fontSize = 13.sp,
+                    "No searchable text. For scans, use Make Searchable in All Tools.", color = c.ink2, fontSize = 13.sp,
                     modifier = Modifier.padding(top = 8.dp).clip(RoundedCornerShape(10.dp)).background(c.card).padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }

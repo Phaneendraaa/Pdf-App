@@ -89,6 +89,10 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             SRow(PkIcons.Palette, "Theme", value = settings.theme) { sheet = "theme" }
             Divider()
             SRow(PkIcons.Pencil, "Autofill details", sub = "Name, email and phone for forms") { sheet = "autofill" }
+            Divider()
+            SRow(PkIcons.Ocr, "Searchable scans", sub = "Make scans searchable after scanning", trailing = { Switch(settings.searchableScans) }) {
+                scope.launch { Graph.prefs.setSearchableScans(!settings.searchableScans) }
+            }
         }
         Group("Security") {
             SRow(PkIcons.Lock, "App lock", sub = "Fingerprint or PIN to open", trailing = { Switch(settings.appLock) }) {

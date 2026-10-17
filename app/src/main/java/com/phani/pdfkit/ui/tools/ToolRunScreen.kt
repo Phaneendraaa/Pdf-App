@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "fillform", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("edittext", "fillform", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -135,6 +135,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "merge" -> if (selected.size >= 2) "Merge ${selected.size} PDFs" else "Pick at least 2 PDFs"
         "edittext" -> "Open editor"
         "fillform" -> "Open form"
+        "searchable" -> "Make searchable"
         "pdf2word" -> "Convert to Word"
         "word2pdf" -> "Convert to PDF"
         "compress" -> "Compress PDF"
@@ -274,6 +275,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         }
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
                         "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. When you save, choose to update this PDF or keep a new copy. Works on text PDFs, not scans.")
+                        "searchable" -> Hint("Reads the text in your scanned pages and hides a copy behind the picture, so you can search and copy it. English and other Latin-script text. Takes a few seconds per page.")
                         "fillform" -> Hint("Tap a blue field to type, pick or tick it. Autofill uses details saved only on your phone. Works on fillable forms; for other PDFs you can type anywhere on the page.")
                         "pdf2word" -> Hint("Works best for text documents. Text and paragraphs carry over; tables, columns and images don't. Scanned PDFs need Text Recognition first.")
                         "word2pdf" -> Hint("Converts text, headings, bold and page breaks. Tables and images aren't included yet.")
@@ -300,6 +302,11 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         val out = lib.newFile(base())
                         val n = try { com.phani.pdfkit.pdf.WordTools.docxToPdf(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
                         JobResult(out, n, "PDF created!", again = again, againLabel = "Convert another file")
+                    }
+                    "searchable" -> ActiveJob.set("Making searchable", "Reading your scan...", listOf("Opening PDF", "Recognizing text", "Saving PDF")) { r ->
+                        val out = lib.newFile(base() + "_searchable")
+                        val res = try { com.phani.pdfkit.pdf.SearchablePdf.make(src.first(), out, r) } catch (e: Exception) { out.delete(); throw e }
+                        JobResult(out, res.pages, "Now searchable!", note = "${res.added} page${if (res.added == 1) "" else "s"} got a text layer", again = again, againLabel = "Make another PDF searchable")
                     }
                     "merge" -> ActiveJob.set("Merging PDFs", "Merging your PDFs...", listOf("Reading files", "Combining pages", "Saving PDF")) { r ->
                         val out = lib.newFile(lib.stampedName("Merged"))

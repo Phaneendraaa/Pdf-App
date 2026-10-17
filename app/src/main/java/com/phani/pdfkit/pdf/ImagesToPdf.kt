@@ -15,6 +15,7 @@ data class PageOptions(
     val size: String = "A4",          // A4, Letter, Fit to image
     val margin: String = "None",      // None, Small, Large
     val orientation: String = "Portrait", // Portrait, Landscape
+    val filter: String = "Original",  // Original, Enhanced, B&W
 )
 
 object ImagesToPdf {
@@ -38,7 +39,8 @@ object ImagesToPdf {
         PDDocument().use { doc ->
             uris.forEachIndexed { i, uri ->
                 coroutineContext.ensureActive()
-                val bmp = Bitmaps.decode(context, uri, quality.maxSide) ?: return@forEachIndexed
+                val raw = Bitmaps.decode(context, uri, quality.maxSide) ?: return@forEachIndexed
+                val bmp = Filters.apply(raw, opts.filter).also { if (it !== raw) raw.recycle() }
                 val imgW = bmp.width.toFloat(); val imgH = bmp.height.toFloat()
                 val (pw, ph) = when (opts.size) {
                     "Letter" -> LT_W to LT_H

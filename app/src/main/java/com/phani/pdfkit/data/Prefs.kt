@@ -23,6 +23,7 @@ data class Settings(
     val hintsSeen: Set<String> = emptySet(),
     val successCount: Int = 0,
     val ratePrompted: Boolean = false,
+    val searchableScans: Boolean = true,
 )
 
 class Prefs(private val context: Context) {
@@ -36,6 +37,7 @@ class Prefs(private val context: Context) {
         val hints = stringSetPreferencesKey("hints_seen")
         val successCount = intPreferencesKey("success_count")
         val ratePrompted = booleanPreferencesKey("rate_prompted")
+        val searchableScans = booleanPreferencesKey("searchable_scans")
     }
 
     val settings: Flow<Settings> = context.store.data.map { p ->
@@ -49,6 +51,7 @@ class Prefs(private val context: Context) {
             hintsSeen = p[K.hints] ?: emptySet(),
             successCount = p[K.successCount] ?: 0,
             ratePrompted = p[K.ratePrompted] ?: false,
+            searchableScans = p[K.searchableScans] ?: true,
         )
     }
 
@@ -57,6 +60,7 @@ class Prefs(private val context: Context) {
     suspend fun setAppLock(v: Boolean) = context.store.edit { it[K.appLock] = v }
     suspend fun setOnboarded(v: Boolean) = context.store.edit { it[K.onboarded] = v }
     suspend fun setTourDone(v: Boolean) = context.store.edit { it[K.tourDone] = v }
+    suspend fun setSearchableScans(v: Boolean) = context.store.edit { it[K.searchableScans] = v }
     suspend fun setRatePrompted() = context.store.edit { it[K.ratePrompted] = true }
 
     suspend fun toggleStar(path: String) = context.store.edit {

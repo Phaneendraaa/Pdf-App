@@ -34,7 +34,7 @@ Update it in the same commit as the work it describes.
 - [x] **Batch 9** - Gemini Nano: Summarize, Smart rename.
 - [x] **Batch 11** - Viewer upgrades: search in PDF (highlighted hits, prev/next), clickable links, bookmarks tab in Pages sheet, select and copy text, remember last page. Editor Save asks "Update this PDF" or "Save as a new copy".
 - [x] **Batch 12** - Fill forms: AcroForm fields (text, checkbox, radio, dropdown), autofill details saved on the phone (Settings > Autofill details), flatten or keep editable, Update/New copy.
-- [ ] **Batch 13** - Searchable OCR PDF output + scan filters.
+- [x] **Batch 13** - Make Searchable tool (ML Kit OCR -> invisible text layer, `pdf/SearchablePdf.kt`), scans made searchable in the background (Settings > Searchable scans, on by default), JPG to PDF "Look" filter (Original/Enhanced/B&W, `pdf/Filters.kt`). ML Kit scanner already has its own filters.
 - [ ] **Batch 14** - Crop pages, page numbers on all pages in one go, print, better Word conversion (tables/images), "Replace original" for tool results.
 - [ ] **Batch 10** - Release hardening: R8 minify, size check, real upload key, Play listing assets.
 

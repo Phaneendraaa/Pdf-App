@@ -88,6 +88,7 @@ object ToolCatalog {
         Tool("protect", "Protect PDF", "Add a password", PkIcons.Lock, VIOLET, VIOLET_T, "Secure"),
         Tool("unlock", "Unlock PDF", "Remove a password", PkIcons.Unlock, VIOLET, VIOLET_T, "Secure"),
         Tool("scan", "Scan Document", "Use your camera to create a PDF", PkIcons.Scan, ROSE, ROSE_T, "Scan & OCR"),
+        Tool("searchable", "Make Searchable", "Add hidden text to scanned PDFs", PkIcons.Search, ROSE, ROSE_T, "Scan & OCR", isNew = true),
         Tool("ocr", "Text Recognition", "Copy text from scans and photos", PkIcons.Ocr, ROSE, ROSE_T, "Scan & OCR", isNew = true),
     )
     val sections = listOf("Convert", "Organize", "Edit", "Secure", "Scan & OCR")
