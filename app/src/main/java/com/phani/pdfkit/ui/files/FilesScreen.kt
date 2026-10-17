@@ -159,7 +159,7 @@ fun FilesScreen(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(shown, key = { it.path }) { d -> GridCard(d, d.path in starred, { onStar(d) }, { onMore(d) }) { onOpen(d) } }
+                    items(shown, key = { it.path }) { d -> androidx.compose.foundation.layout.Box(Modifier.animateItem()) { GridCard(d, d.path in starred, { onStar(d) }, { onMore(d) }) { onOpen(d) } } }
                 }
             }
         }

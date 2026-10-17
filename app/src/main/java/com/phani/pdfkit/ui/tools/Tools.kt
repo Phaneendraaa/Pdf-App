@@ -140,7 +140,7 @@ fun ToolsScreen(focusSearch: Boolean, onBack: () -> Unit, onTool: (String) -> Un
                     item(key = "h_$sec") {
                         Text(sec, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = c.ink, modifier = Modifier.padding(start = 22.dp, top = 20.dp, bottom = 10.dp))
                     }
-                    items(items, key = { it.key }) { t -> ToolRow(t) { onTool(t.key) } }
+                    items(items, key = { it.key }) { t -> androidx.compose.foundation.layout.Box(Modifier.animateItem()) { ToolRow(t) { onTool(t.key) } } }
                 }
             }
             item { Spacer(Modifier.navigationBarsPadding()) }
