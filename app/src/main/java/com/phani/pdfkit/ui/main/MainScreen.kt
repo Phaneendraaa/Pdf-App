@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -79,6 +80,8 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
     var createSheet by remember { mutableStateOf(false) }
     var moreFor by remember { mutableStateOf<DocFile?>(null) }
+    var movingDoc by remember { mutableStateOf<DocFile?>(null) }
+    val folders by Graph.library.folders.collectAsState()
     var renameFor by remember { mutableStateOf<DocFile?>(null) }
     var infoFor by remember { mutableStateOf<DocFile?>(null) }
 
@@ -110,6 +113,8 @@ fun MainScreen(
                             files = files, starred = settings.starred, onOpen = onOpen, onMore = { moreFor = it },
                             onStar = { d -> scope.launch { Graph.prefs.toggleStar(d.path) } }, onSearch = onSearch,
                             onMerge = { docs -> onTool("mergefiles:" + docs.joinToString("\n") { it.path }) },
+                            folders = folders,
+                            onBatch = { kind, docs -> onTool("batch:" + kind + "\n" + docs.joinToString("\n") { it.path }) },
                         )
                         Tab.Settings -> SettingsScreen(settings, onTour)
                     }
@@ -142,6 +147,13 @@ fun MainScreen(
         }
     }
 
+    movingDoc?.let { d ->
+        com.phani.pdfkit.ui.files.MoveSheet(folders, { movingDoc = null }) { target ->
+            movingDoc = null
+            scope.launch { Graph.library.move(d, target); Toaster.show("Moved to ${target.ifEmpty { "All files" }}") }
+        }
+    }
+
     moreFor?.let { d ->
         val starred = d.path in settings.starred
         val dark = c.isDark
@@ -160,6 +172,7 @@ fun MainScreen(
                 moreFor = null; scope.launch { Graph.prefs.toggleStar(d.path) }
             }
             SheetOption(PkIcons.Edit, c.ink2, c.surf, "Rename") { moreFor = null; renameFor = d }
+            SheetOption(PkIcons.Folder, c.ink2, c.surf, "Move to folder", if (d.folder.isEmpty()) null else "Now in ${d.folder}") { moreFor = null; movingDoc = d }
             SheetOption(PkIcons.Copy, c.ink2, c.surf, "Duplicate") {
                 moreFor = null
                 scope.launch {

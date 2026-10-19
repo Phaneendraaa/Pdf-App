@@ -302,6 +302,33 @@ private fun startImagesToPdf(ctx: Context, settings: Settings) {
 private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>, startScan: () -> Unit, startAppend: (java.io.File) -> Unit) {
     if (key.startsWith("scanadd:")) { startAppend(java.io.File(key.removePrefix("scanadd:"))); return }
     if (key.startsWith("edit:")) { nav.navigate(Routes.viewer(key.removePrefix("edit:"), "edit")); return }
+    if (key.startsWith("batch:")) {
+        val lines = key.removePrefix("batch:").split('\n')
+        val kind = lines.first()
+        val src = lines.drop(1).map { java.io.File(it) }.filter { it.exists() }
+        if (src.isEmpty()) return
+        if (kind == "imgs2pdf") {
+            JpgDraft.clear(); JpgDraft.images.addAll(src.map { Uri.fromFile(it) }); nav.navigate(Routes.JPG); return
+        }
+        if (kind.startsWith("compress:")) {
+            val label = kind.removePrefix("compress:")
+            val n = label.substringBefore(' ').toLongOrNull() ?: 200
+            val target = if (label.endsWith("MB")) n * 1024 * 1024 else n * 1024
+            ActiveJob.set("Compressing ${src.size} PDFs", "Compressing your PDFs...", listOf("Reading files", "Finding the best size", "Saving PDFs")) { r ->
+                val lib = Graph.library
+                var first: java.io.File? = null; var done = 0; var over = 0
+                src.forEachIndexed { i, f ->
+                    val out = lib.newFile(f.name.substringBeforeLast('.') + "_compressed", "pdf", f.parentFile ?: lib.dir)
+                    val res = runCatching { com.phani.pdfkit.pdf.PdfTools.compressTo(f, out, target, false) { p -> r((i + p) / src.size) } }.getOrNull()
+                    if (res == null) out.delete() else { done++; if (!res.reached) over++; if (first == null) first = out }
+                }
+                lib.refreshBlocking()
+                first?.let { JobResult(it, done, "$done PDF${if (done == 1) "" else "s"} compressed!", detail = "Saved next to the originals with _compressed", note = if (over > 0) "$over couldn't get under $label" else "All under $label") }
+            }
+            nav.navigate(Routes.PROCESSING)
+        }
+        return
+    }
     if (key.startsWith("mergefiles:")) {
         val src = key.removePrefix("mergefiles:").split('\n').map { java.io.File(it) }.filter { it.exists() }
         if (src.size < 2) { Toaster.show("Pick at least 2 PDFs to merge"); return }
