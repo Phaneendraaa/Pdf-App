@@ -72,7 +72,7 @@ class CompressState {
 
     fun pick(n: Int, u: String) { custom = n.toString(); unit = u }
 
-    companion object { val PRESETS = listOf(100 to "KB", 200 to "KB", 500 to "KB", 1 to "MB") }
+    companion object { val PRESETS = listOf(50 to "KB", 100 to "KB", 200 to "KB", 500 to "KB") }
 }
 
 @Composable
@@ -93,7 +93,7 @@ fun CompressOptions(st: CompressState, file: File?) {
         Spacer(Modifier.width(10.dp))
         Segmented(listOf("KB", "MB"), st.unit, Modifier.width(120.dp)) { st.unit = it }
     }
-    OptHint("Keeps the best quality that fits." + (file?.let { " This file is ${Fmt.size(it.length())}." } ?: ""))
+    OptHint("Keeps the best quality that fits. Forms often ask for under 100, 200 or 300 KB." + (file?.let { " This file is ${Fmt.size(it.length())}." } ?: ""))
     SwitchRow("Black and white", "Smaller files, good for printing and forms", st.gray) { st.gray = it }
 }
 
@@ -211,7 +211,7 @@ fun SwitchRow(title: String, sub: String?, on: Boolean, onChange: (Boolean) -> U
 }
 
 @Composable
-private fun NumberField(value: String, onChange: (String) -> Unit) {
+internal fun NumberField(value: String, onChange: (String) -> Unit) {
     val c = Pk.colors
     OutlinedTextField(
         value, { onChange(it.filter(Char::isDigit).take(4)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -221,12 +221,12 @@ private fun NumberField(value: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun OptLabel(text: String) {
+internal fun OptLabel(text: String) {
     Text(text, fontSize = 14.5.sp, fontWeight = FontWeight.Medium, color = Pk.colors.ink, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
 }
 
 @Composable
-private fun OptHint(text: String) {
+internal fun OptHint(text: String) {
     Text(text, fontSize = 13.sp, color = Pk.colors.ink2, lineHeight = 18.sp, modifier = Modifier.padding(top = 8.dp))
 }
 

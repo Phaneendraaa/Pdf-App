@@ -70,4 +70,38 @@ object ImagesToPdf {
         }
         return pages
     }
+
+    /**
+     * Front and back of an ID card on one A4 page, one above the other, the way forms ask for
+     * Aadhaar or PAN. [actualSize] prints the card at its real size (85.6 mm wide); otherwise larger.
+     */
+    suspend fun idCard(context: Context, front: Uri, back: Uri?, out: File, actualSize: Boolean, filter: String, quality: Quality): Int {
+        PDDocument().use { doc ->
+            val page = PDPage(PDRectangle(A4_W, A4_H))
+            doc.addPage(page)
+            val cardW = if (actualSize) 85.6f / 25.4f * 72f else A4_W * 0.72f
+            val gap = 28f
+            val imgs = listOfNotNull(front, back).mapNotNull { uri ->
+                coroutineContext.ensureActive()
+                val raw = Bitmaps.decode(context, uri, quality.maxSide.coerceAtMost(2000)) ?: return@mapNotNull null
+                val f = Filters.apply(raw, filter).also { if (it !== raw) raw.recycle() }
+                val x = JPEGFactory.createFromImage(doc, f, quality.jpeg)
+                val ratio = f.width.toFloat() / f.height
+                f.recycle()
+                Triple(x, cardW, cardW / ratio)
+            }
+            if (imgs.isEmpty()) return 0
+            val total = imgs.sumOf { it.third.toDouble() }.toFloat() + gap * (imgs.size - 1)
+            var y = (A4_H + total) / 2f
+            PDPageContentStream(doc, page).use { cs ->
+                imgs.forEach { (img, w, h) ->
+                    y -= h
+                    cs.drawImage(img, (A4_W - w) / 2f, y, w, h)
+                    y -= gap
+                }
+            }
+            doc.save(out)
+            return 1
+        }
+    }
 }

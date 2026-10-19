@@ -61,6 +61,8 @@ object Routes {
     const val SUCCESS = "success"
     const val OCR = "ocr"
     const val SCAN = "scanreview"
+    const val PHOTO = "photosize"
+    const val IDCARD = "idcard"
     const val VIEWER = "viewer?path={path}&tool={tool}"
     const val TOOL = "tool/{key}?path={path}"
     fun tool(key: String, path: String? = null) = "tool/$key" + (path?.let { "?path=${Uri.encode(it)}" } ?: "")
@@ -193,6 +195,7 @@ fun PdfKitApp(settings: Settings) {
                     onTool = { key, p ->
                         when (key) {
                             "crop" -> nav.navigate(Routes.viewer(p, "crop")) { popUpTo(Routes.VIEWER) { inclusive = true } }
+                            "redact" -> nav.navigate(Routes.viewer(p, "redact")) { popUpTo(Routes.VIEWER) { inclusive = true } }
                             "jpg2pdf" -> { JpgDraft.clear(); JpgDraft.images.add(Uri.fromFile(java.io.File(p))); nav.navigate(Routes.JPG) }
                             "scanadd" -> startAppend(java.io.File(p))
                             "ocrimage" -> { com.phani.pdfkit.ui.ocr.OcrInput.pending = Uri.fromFile(java.io.File(p)); nav.navigate(Routes.OCR) }
@@ -202,6 +205,8 @@ fun PdfKitApp(settings: Settings) {
                 )
             }
             composable(Routes.OCR) { OcrScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.PHOTO) { com.phani.pdfkit.ui.tools.PhotoSizeScreen(onBack = { nav.popBackStack() }, onStart = { nav.navigate(Routes.PROCESSING) }) }
+            composable(Routes.IDCARD) { com.phani.pdfkit.ui.tools.IdCardScreen(onBack = { nav.popBackStack() }, onStart = { nav.navigate(Routes.PROCESSING) }) }
             composable(Routes.SCAN) {
                 ScanReviewScreen(
                     onDiscard = { ScanDraft.clear(ctx); nav.popBackStack() },
@@ -233,7 +238,7 @@ fun PdfKitApp(settings: Settings) {
                     onBack = { nav.popBackStack() },
                     onStart = { nav.navigate(Routes.PROCESSING) },
                     onEdit = { p ->
-                        val t = listOf("form", "crop").firstOrNull { p.startsWith("$it:") }
+                        val t = listOf("form", "crop", "redact").firstOrNull { p.startsWith("$it:") }
                         nav.navigate(if (t != null) Routes.viewer(p.removePrefix("$t:"), t) else Routes.viewer(p, "edit")) { popUpTo(Routes.MAIN) }
                     },
                 )
@@ -304,6 +309,8 @@ private fun handleTool(key: String, nav: NavHostController, files: List<DocFile>
         "ocr" -> nav.navigate(Routes.OCR)
         "more" -> nav.navigate(Routes.tools())
         "jpg2pdf" -> nav.navigate(Routes.JPG)
+        "photosize" -> nav.navigate(Routes.PHOTO)
+        "idcard" -> nav.navigate(Routes.IDCARD)
         in RUNNABLE_TOOLS -> nav.navigate(Routes.tool(key))
         "sign", "text" -> {
             val pdf = files.firstOrNull { it.isPdf }

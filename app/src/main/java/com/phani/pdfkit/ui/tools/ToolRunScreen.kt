@@ -72,7 +72,7 @@ import java.io.File
 import java.util.Locale
 
 /** Tools handled by [ToolRunScreen]. */
-val RUNNABLE_TOOLS = setOf("edittext", "fillform", "crop", "margins", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "blank", "delpages", "pagenum", "watermark")
+val RUNNABLE_TOOLS = setOf("redact", "edittext", "fillform", "crop", "margins", "searchable", "pdf2word", "word2pdf", "merge", "compress", "unlock", "protect", "pdf2jpg", "split", "rotate", "reorder", "blank", "delpages", "pagenum", "watermark")
 
 @Composable
 fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart: () -> Unit, onEdit: (String) -> Unit = {}) {
@@ -142,6 +142,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
         "edittext" -> "Open editor"
         "fillform" -> "Open form"
         "crop" -> "Open crop"
+        "redact" -> "Open redact"
         "margins" -> "Add margins"
         "searchable" -> "Make searchable"
         "pdf2word" -> "Convert to Word"
@@ -278,6 +279,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         "merge" -> Hint("Tap files in the order you want them. Numbers show the merge order.")
                         "edittext" -> Hint("Tap any line on a page to change its words, size, boldness or color, or delete it. When you save, choose to update this PDF or keep a new copy. Works on text PDFs, not scans.")
                         "searchable" -> Hint("Reads the text in your scanned pages and hides a copy behind the picture, so you can search and copy it. English and other Latin-script text. Takes a few seconds per page.")
+                        "redact" -> Hint("Drag over anything to black it out, or tap Mask Aadhaar to hide the first 8 digits automatically. Saves a new copy where the hidden parts are removed for good. e-Aadhaar PDFs need unlocking first (password: first 4 letters of your name in capitals + birth year).")
                         "crop" -> Hint("Drag the corners or sides of the frame, then crop one page or all pages at once. What you cut off is hidden, not erased.")
                         "fillform" -> Hint("Tap a blue field to type, pick or tick it. Autofill uses details saved only on your phone. Works on fillable forms; for other PDFs you can type anywhere on the page.")
                         "pdf2word" -> Hint("Turns every page into editable text in Word: fonts, sizes, bold, colors, headings, lists, tables, columns and pictures. Scanned pages are read automatically.")
@@ -293,6 +295,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                 if (key == "edittext") { onEdit(src.first().absolutePath); return@PrimaryButton }
                 if (key == "fillform") { onEdit("form:" + src.first().absolutePath); return@PrimaryButton }
                 if (key == "crop") { onEdit("crop:" + src.first().absolutePath); return@PrimaryButton }
+                if (key == "redact") { onEdit("redact:" + src.first().absolutePath); return@PrimaryButton }
                 val again = "tool/$key"
                 fun base() = displayName(src.first()).substringBeforeLast('.')
                 val lib = Graph.library

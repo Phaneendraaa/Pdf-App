@@ -128,6 +128,12 @@ object Ocr {
             b.lines.mapNotNull { l -> l.boundingBox?.let { OcrLine(l.text, it.left, it.top, it.right, it.bottom) } }
         }
 
+    /** Words with their boxes, grouped by line, for finding numbers to hide. */
+    suspend fun words(bitmap: Bitmap): List<List<OcrLine>> =
+        client.process(InputImage.fromBitmap(bitmap, 0)).await().textBlocks.flatMap { b ->
+            b.lines.map { l -> l.elements.mapNotNull { e -> e.boundingBox?.let { OcrLine(e.text, it.left, it.top, it.right, it.bottom) } } }
+        }
+
     suspend fun read(context: Context, uri: Uri): String = client.process(InputImage.fromFilePath(context, uri)).await().text
 }
 

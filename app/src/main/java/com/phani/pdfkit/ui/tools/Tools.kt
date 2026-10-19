@@ -70,6 +70,9 @@ object ToolCatalog {
     private const val ROSE = 0xFFE11D48; private const val ROSE_T = 0xFFFEEFF2
 
     val all = listOf(
+        Tool("photosize", "Photo & Signature", "Resize to 20–50 KB and exact pixels for forms", PkIcons.Signature, ROSE, ROSE_T, "Form uploads", isNew = true),
+        Tool("idcard", "ID Card to PDF", "Aadhaar or PAN front and back on one page", PkIcons.Pages, GREEN, GREEN_T, "Form uploads", isNew = true),
+        Tool("redact", "Redact & Mask Aadhaar", "Black out details for good", PkIcons.EyeOff, VIOLET, VIOLET_T, "Form uploads", isNew = true),
         Tool("jpg2pdf", "JPG to PDF", "Convert images to PDF", PkIcons.Image, BLUE, BLUE_T, "Convert"),
         Tool("pdf2jpg", "PDF to JPG", "Convert PDF pages to images", PkIcons.ImageOut, RED, RED_T, "Convert"),
         Tool("word2pdf", "Word to PDF", "Convert DOC/DOCX to PDF", PkIcons.DocPdf, BLUE, BLUE_T, "Convert"),
@@ -95,11 +98,11 @@ object ToolCatalog {
         Tool("searchable", "Make Searchable", "Add hidden text to scanned PDFs", PkIcons.Search, ROSE, ROSE_T, "Scan & OCR", isNew = true),
         Tool("ocr", "Text Recognition", "Copy text from scans and photos", PkIcons.Ocr, ROSE, ROSE_T, "Scan & OCR", isNew = true),
     )
-    val sections = listOf("Convert", "Organize", "Edit", "Secure", "Scan & OCR")
+    val sections = listOf("Form uploads", "Convert", "Organize", "Edit", "Secure", "Scan & OCR")
 
     /** Home grid, ordered by search demand. "more" is appended by the screen. */
-    val quick = listOf("jpg2pdf", "edittext", "pdf2word", "pdf2jpg", "merge", "compress", "unlock")
-    val quickLabels = mapOf("edittext" to "Edit PDF", "pdf2word" to "PDF to Word", "word2pdf" to "Word to PDF", "merge" to "Merge", "compress" to "Compress", "unlock" to "Unlock")
+    val quick = listOf("jpg2pdf", "edittext", "pdf2word", "photosize", "merge", "compress", "pdf2jpg")
+    val quickLabels = mapOf("edittext" to "Edit PDF", "pdf2word" to "PDF to Word", "word2pdf" to "Word to PDF", "merge" to "Merge", "photosize" to "Photo & Sign", "compress" to "Compress", "unlock" to "Unlock")
 
     fun byKey(key: String) = all.firstOrNull { it.key == key }
 }

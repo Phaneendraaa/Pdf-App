@@ -51,6 +51,16 @@ class PageText(
         return out
     }
 
+    /**
+     * Aadhaar-style numbers (12 digits, often as 4-4-4). Each hit covers the first 8 digits only,
+     * the way UIDAI's masked Aadhaar does, so the last 4 stay readable.
+     */
+    fun aadhaar(): List<Match> {
+        val re = Regex("(?<![0-9])([0-9]{4})[ \\-]?([0-9]{4})[ \\-]?([0-9]{4})(?![0-9])")
+        return re.findAll(text).map { m -> Match(index, rectsFor(m.range.first, m.groups[2]!!.range.last + 1)) }
+            .filter { it.rects.isNotEmpty() }.toList()
+    }
+
     private fun rectsFor(start: Int, end: Int): List<Frac> {
         val rects = ArrayList<Frac>()
         var l = Float.MAX_VALUE; var r = -1f; var t = Float.MAX_VALUE; var b = -1f

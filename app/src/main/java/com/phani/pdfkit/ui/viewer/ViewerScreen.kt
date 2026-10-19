@@ -174,6 +174,7 @@ fun ViewerScreen(
                 SheetOption(PkIcons.Hash, teal.fg, teal.bg, "Add page numbers") { more = false; onTool("pagenum", doc.path) }
                 SheetOption(PkIcons.Compress, teal.fg, teal.bg, "Compress", "Make it smaller than 200 KB, 500 KB...") { more = false; onTool("compress", doc.path) }
                 SheetOption(PkIcons.Crop, teal.fg, teal.bg, "Crop pages") { more = false; onTool("crop", doc.path) }
+                SheetOption(PkIcons.EyeOff, teal.fg, teal.bg, "Redact or mask Aadhaar", "Black out details for good") { more = false; onTool("redact", doc.path) }
             }
             if (doc.isPdf) SheetOption(PkIcons.Moon, blue.fg, blue.bg, if (night) "Turn off night reading" else "Night reading", "Dark pages, easier on the eyes") {
                 more = false; scope.launch { Graph.prefs.setNightReading(!night) }
@@ -300,6 +301,10 @@ private fun Pages(
             onClose = { tool = null },
             onSaved = { out -> tool = null; onReplace(out.absolutePath) },
             onNoFields = { tool = "text" },
+        ) else if (t == "redact") com.phani.pdfkit.ui.edit.RedactEditor(
+            pdf = pdf, file = file, startPage = current - 1,
+            onClose = { tool = null },
+            onSaved = { out -> tool = null; onReplace(out.absolutePath) },
         ) else if (t == "crop") com.phani.pdfkit.ui.edit.CropEditor(
             pdf = pdf, file = file, startPage = current - 1,
             onClose = { tool = null },
