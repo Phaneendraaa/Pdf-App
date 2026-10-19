@@ -131,6 +131,7 @@ fun ViewerScreen(
     var searching by remember { mutableStateOf(false) }
     var copyOpen by remember { mutableStateOf(false) }
     var marksOpen by remember { mutableStateOf(false) }
+    var reading by remember { mutableStateOf<Boolean?>(null) } // null closed, false reading mode, true read aloud
     var pageNow by remember { mutableIntStateOf(0) }
     val settings by Graph.prefs.settings.collectAsState(initial = com.phani.pdfkit.data.Settings())
     val night = settings.nightReading
@@ -163,6 +164,7 @@ fun ViewerScreen(
 
     if (summary && doc != null) SummarySheet(doc, ai) { summary = false }
     if (copyOpen && doc != null) CopyTextSheet(doc, pageNow) { copyOpen = false }
+    reading?.let { speak -> if (doc != null) ReadMode(doc, pageNow, speak) { reading = null } }
     if (marksOpen && doc != null) MarksSheet(doc, { marksOpen = false }) { out -> marksOpen = false; onReplace(out.absolutePath) }
 
     if (more && doc != null) {
@@ -181,6 +183,8 @@ fun ViewerScreen(
             if (doc.isPdf) SheetOption(PkIcons.Moon, blue.fg, blue.bg, if (night) "Turn off night reading" else "Night reading", "Dark pages, easier on the eyes") {
                 more = false; scope.launch { Graph.prefs.setNightReading(!night) }
             }
+            if (doc.isPdf) SheetOption(PkIcons.Play, blue.fg, blue.bg, "Read aloud", "Your phone reads the text to you") { more = false; reading = true }
+            if (doc.isPdf) SheetOption(PkIcons.TextT, blue.fg, blue.bg, "Reading mode", "Text that fits your screen, any size") { more = false; reading = false }
             if (doc.isPdf) SheetOption(PkIcons.List, blue.fg, blue.bg, "Comments & marks", "See or remove notes, highlights and drawings") { more = false; marksOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Copy, blue.fg, blue.bg, "Select and copy text", "Text on the page you are reading") { more = false; copyOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Printer, blue.fg, blue.bg, "Print", "Pick pages in the print screen") { more = false; com.phani.pdfkit.util.PrintPdf.print(ctx, doc.file, doc.name) }
