@@ -51,9 +51,9 @@ import com.phani.pdfkit.ui.theme.Pk
 private data class Step(val anchor: String, val title: String, val body: String, val round: Boolean = false)
 
 private val STEPS = listOf(
-    Step("quick", "Your top tools, one tap away", "The tools people use most. Tap More to see all 18."),
+    Step("quick", "Your top tools, one tap away", "The tools people use most. Tap More to see them all."),
     Step("search", "Find anything fast", "Search your files or jump straight to a tool."),
-    Step("fab", "Start something new", "Scan a document, turn photos into a PDF, or import a file.", round = true),
+    Step("fab", "Start here", "Scan paper with your camera, or import a PDF, Word file or photo."),
     Step("recent", "Pick up where you left off", "Your latest PDFs live here. Tap ⋮ to share, star or delete."),
     Step("navfiles", "All your files", "Filter PDFs and images, star favourites, switch to grid view."),
 )

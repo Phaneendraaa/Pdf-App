@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -115,10 +116,18 @@ private fun DocGlyph(modifier: Modifier, width: Dp, body: Color, foldColor: Colo
     }
 }
 
-/** File thumbnail: PDF glyph or rounded image preview. */
+/** File thumbnail: the PDF's first page (glyph while it loads), Word glyph, or image preview. */
 @Composable
 fun FileThumb(doc: DocFile, size: Dp = 40.dp) {
-    if (doc.isPdf) PdfGlyph(width = size * 0.95f)
+    if (doc.isPdf) {
+        val page = com.phani.pdfkit.util.rememberPdfThumb(doc)
+        if (page == null) PdfGlyph(width = size * 0.95f)
+        else androidx.compose.foundation.Image(
+            page, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter,
+            modifier = Modifier.size(size * 0.9f, size * 1.15f).clip(RoundedCornerShape(5.dp))
+                .border(1.dp, Pk.colors.line, RoundedCornerShape(5.dp)).background(Color.White),
+        )
+    }
     else if (doc.isDoc) WordGlyph(width = size * 0.95f)
     else AsyncImage(
         model = File(doc.path), contentDescription = null, contentScale = ContentScale.Crop,
@@ -172,7 +181,7 @@ fun FileRow(
 @Composable
 fun IconBtn(icon: ImageVector, tint: Color = Pk.colors.ink, size: Dp = 22.dp, label: String? = null, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onClick),
+        Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(size)) }
 }

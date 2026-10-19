@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +65,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (String) -> Unit) {
+fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (String) -> Unit, onNext: (String, String) -> Unit = { _, _ -> }) {
     val c = Pk.colors
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -91,23 +92,31 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.padding(top = 20.dp).size(100.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (pop.value * 1.4f).coerceAtMost(1f) }
+                Modifier.padding(top = 4.dp).size(64.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (pop.value * 1.4f).coerceAtMost(1f) }
                     .shadow(20.dp, CircleShape, spotColor = c.blue).clip(CircleShape).background(c.blue),
                 contentAlignment = Alignment.Center,
-            ) { Icon(PkIcons.Check, null, tint = Color.White, modifier = Modifier.size(50.dp)) }
+            ) { Icon(PkIcons.Check, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
 
             Column(
                 Modifier.graphicsLayer { alpha = reveal.value; translationY = (1 - reveal.value) * 30f },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(res.title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 30.dp))
-                HorizontalDivider(Modifier.padding(vertical = 26.dp), color = c.line)
-                if (doc?.isImage == true) {
+                Text(res.title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp, bottom = 20.dp))
+                val d0 = doc
+                if (d0?.isImage == true) {
                     coil.compose.AsyncImage(
-                        doc!!.file, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+                        d0.file, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.height(150.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, c.line, RoundedCornerShape(8.dp)),
                     )
-                } else if (doc?.isDoc == true) com.phani.pdfkit.ui.components.WordGlyph(width = 54.dp) else PdfGlyph(width = 54.dp)
+                } else if (d0?.isDoc == true) com.phani.pdfkit.ui.components.WordGlyph(width = 54.dp)
+                else {
+                    val page = d0?.let { com.phani.pdfkit.util.rememberPdfThumb(it) }
+                    if (page == null) PdfGlyph(width = 54.dp)
+                    else androidx.compose.foundation.Image(
+                        page, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.height(170.dp).shadow(6.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)).background(Color.White),
+                    )
+                }
                 Row(
                     Modifier.padding(top = 16.dp).clip(RoundedCornerShape(8.dp)).clickable { renaming = true }.padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -151,15 +160,29 @@ fun SuccessScreen(onDone: () -> Unit, onOpen: (DocFile) -> Unit, onAgain: (Strin
                         modifier = Modifier.padding(top = 14.dp).clip(RoundedCornerShape(8.dp)).clickable { replacing = true }.padding(8.dp),
                     )
                 }
-                Row(Modifier.padding(top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(PkIcons.Shield, null, tint = c.green, modifier = Modifier.size(15.dp))
-                    Text("Created on your phone. Never uploaded.", fontSize = 13.sp, color = c.ink2, modifier = Modifier.padding(start = 6.dp))
+                // Next steps: carry this file straight into the next tool.
+                val path = (doc?.file ?: res.file).absolutePath
+                val next = when {
+                    doc?.isImage == true -> listOf("jpg2pdf" to "Make PDF")
+                    doc?.isDoc == true -> listOf("word2pdf" to "To PDF")
+                    else -> buildList {
+                        if (res.again == "scan" || res.again?.startsWith("scanadd:") == true) add("scanadd" to "Add pages")
+                        add("compress" to "Compress"); add("sign" to "Sign"); add("protect" to "Password")
+                        add("pdf2word" to "To Word"); add("pagenum" to "Page numbers"); add("redact" to "Redact")
+                    }
                 }
-                if (res.again == "scan") {
-                    Text(
-                        "Add more pages to this scan", color = c.blue, fontWeight = FontWeight.Medium, fontSize = 15.sp,
-                        modifier = Modifier.padding(top = 14.dp).clip(RoundedCornerShape(8.dp)).clickable { onAgain("scanadd:" + res.file.absolutePath) }.padding(8.dp),
-                    )
+                Text("Next", fontSize = 13.sp, color = c.ink2, modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    next.forEach { (k, label) ->
+                        Text(
+                            label, color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clip(RoundedCornerShape(99.dp)).border(1.dp, c.line, RoundedCornerShape(99.dp))
+                                .clickable { onNext(k, path) }.padding(horizontal = 14.dp, vertical = 9.dp),
+                        )
+                    }
                 }
                 if (res.again != null) {
                     Text(

@@ -168,6 +168,15 @@ fun PdfKitApp(settings: Settings) {
             }
             composable(Routes.SUCCESS) {
                 SuccessScreen(
+                    onNext = { k, p ->
+                        when (k) {
+                            "scanadd" -> { nav.popBackStack(Routes.MAIN, false); startAppend(java.io.File(p)) }
+                            "sign" -> nav.navigate(Routes.viewer(p, "sign")) { popUpTo(Routes.MAIN) }
+                            "redact" -> nav.navigate(Routes.viewer(p, "redact")) { popUpTo(Routes.MAIN) }
+                            "jpg2pdf" -> { JpgDraft.clear(); JpgDraft.images.add(Uri.fromFile(java.io.File(p))); nav.navigate(Routes.JPG) { popUpTo(Routes.MAIN) } }
+                            else -> nav.navigate(Routes.tool(k, p)) { popUpTo(Routes.MAIN) }
+                        }
+                    },
                     onDone = { nav.popBackStack(Routes.MAIN, inclusive = false) },
                     onOpen = openFile,
                     onAgain = { route ->

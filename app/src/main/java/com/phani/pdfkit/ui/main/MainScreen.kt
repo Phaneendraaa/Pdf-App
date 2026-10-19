@@ -99,10 +99,11 @@ fun MainScreen(
                 ) { t ->
                     when (t) {
                         Tab.Home -> HomeScreen(
-                            recent = files.filter { it.isPdf }.take(3),
+                            recent = files.filter { it.isPdf }.take(4),
                             onSearch = onSearch, onTool = onTool, onOpen = onOpen, onMore = { moreFor = it },
-                            onSeeAll = { onTab(Tab.Files) }, onCreate = { createSheet = true },
-                            onBell = { Toaster.show("You're all caught up") },
+                            onSeeAll = { onTab(Tab.Files) },
+                            onScan = { onTool("scan") },
+                            onImport = { importer.launch(arrayOf("application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) },
                             draftCount = draftCount, onResumeDraft = onResumeDraft, onDiscardDraft = onDiscardDraft,
                         )
                         Tab.Files -> FilesScreen(

@@ -71,8 +71,8 @@ fun HomeScreen(
     onOpen: (DocFile) -> Unit,
     onMore: (DocFile) -> Unit,
     onSeeAll: () -> Unit,
-    onCreate: () -> Unit,
-    onBell: () -> Unit,
+    onScan: () -> Unit,
+    onImport: () -> Unit,
     draftCount: Int = 0,
     onResumeDraft: () -> Unit = {},
     onDiscardDraft: () -> Unit = {},
@@ -86,7 +86,6 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.width(10.dp))
                 Text("Pdf Kit", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.weight(1f))
-                IconBtn(PkIcons.Bell, size = 24.dp, label = "Notifications", onClick = onBell)
             }
             Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp)) {
                 Text(greeting(), style = MaterialTheme.typography.displaySmall, color = c.ink)
@@ -105,6 +104,10 @@ fun HomeScreen(
                 Icon(PkIcons.Search, null, tint = c.ink3, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
                 Text("Search files and tools", color = c.ink3, fontSize = 15.5.sp)
+            }
+            Row(Modifier.anchor("fab").padding(start = 20.dp, end = 20.dp, top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(PkIcons.Scan, "Scan", "Camera to PDF", filled = true, modifier = Modifier.weight(1f), onClick = onScan)
+                ActionCard(PkIcons.FileUp, "Import", "PDF, Word or photo", filled = false, modifier = Modifier.weight(1f), onClick = onImport)
             }
             androidx.compose.animation.AnimatedVisibility(draftCount > 0) {
                 Row(
@@ -154,7 +157,7 @@ fun HomeScreen(
             }
             Column(Modifier.anchor("recent")) {
                 if (recent.isEmpty()) {
-                    EmptyState(PkIcons.FileUp, "No files yet", "Tap + to scan, turn photos into a PDF, or import a file.")
+                    EmptyState(PkIcons.FileUp, "No files yet", "Scan a document or import a file to get started.")
                 } else {
                     recent.forEachIndexed { i, d ->
                         if (i > 0) HorizontalDivider(Modifier.padding(start = 80.dp, end = 22.dp), color = c.line)
@@ -162,16 +165,24 @@ fun HomeScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(110.dp))
+            Spacer(Modifier.height(28.dp))
         }
-        Box(
-            Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 22.dp).anchor("fab")
-                .size(64.dp)
-                .shadow(14.dp, CircleShape, ambientColor = c.blue, spotColor = c.blue)
-                .clip(CircleShape).background(c.blue)
-                .pressable(scaleTo = 0.9f, haptic = true, onClick = onCreate),
-            contentAlignment = Alignment.Center,
-        ) { Icon(PkIcons.Plus, "Create", tint = Color.White, modifier = Modifier.size(30.dp)) }
+    }
+}
+
+/** One of the two main starting points on Home. */
+@Composable
+private fun ActionCard(icon: ImageVector, title: String, sub: String, filled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = Pk.colors
+    val fg = if (filled) Color.White else c.ink
+    Column(
+        modifier.pressable(scaleTo = 0.97f, haptic = true, onClick = onClick).clip(RoundedCornerShape(16.dp))
+            .then(if (filled) Modifier.background(c.blue) else Modifier.border(1.dp, c.line, RoundedCornerShape(16.dp)).background(c.card))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Icon(icon, null, tint = if (filled) Color.White else c.blue, modifier = Modifier.size(24.dp))
+        Text(title, color = fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
+        Text(sub, color = if (filled) Color.White.copy(alpha = 0.8f) else c.ink2, fontSize = 12.5.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
