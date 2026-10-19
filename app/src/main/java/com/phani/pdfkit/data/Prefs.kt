@@ -26,6 +26,7 @@ data class Settings(
     val searchableScans: Boolean = true,
     val nightReading: Boolean = false,
     val saveMode: String = "update",   // update, copy, ask
+    val ocrHindi: Boolean = false,
 )
 
 class Prefs(private val context: Context) {
@@ -42,6 +43,7 @@ class Prefs(private val context: Context) {
         val searchableScans = booleanPreferencesKey("searchable_scans")
         val nightReading = booleanPreferencesKey("night_reading")
         val saveMode = stringPreferencesKey("save_mode")
+        val ocrHindi = booleanPreferencesKey("ocr_hindi")
     }
 
     val settings: Flow<Settings> = context.store.data.map { p ->
@@ -58,6 +60,7 @@ class Prefs(private val context: Context) {
             searchableScans = p[K.searchableScans] ?: true,
             nightReading = p[K.nightReading] ?: false,
             saveMode = p[K.saveMode] ?: "update",
+            ocrHindi = p[K.ocrHindi] ?: false,
         )
     }
 
@@ -68,6 +71,7 @@ class Prefs(private val context: Context) {
     suspend fun setTourDone(v: Boolean) = context.store.edit { it[K.tourDone] = v }
     suspend fun setSaveMode(v: String) = context.store.edit { it[K.saveMode] = v }
     suspend fun setNightReading(v: Boolean) = context.store.edit { it[K.nightReading] = v }
+    suspend fun setOcrHindi(v: Boolean) = context.store.edit { it[K.ocrHindi] = v }
     suspend fun setSearchableScans(v: Boolean) = context.store.edit { it[K.searchableScans] = v }
     suspend fun setRatePrompted() = context.store.edit { it[K.ratePrompted] = true }
 

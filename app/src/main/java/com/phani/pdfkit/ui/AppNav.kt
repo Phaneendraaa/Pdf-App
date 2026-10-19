@@ -96,6 +96,7 @@ fun PdfKitApp(settings: Settings) {
 
     // Files shared or opened from other apps, and launcher shortcuts.
     val incoming by com.phani.pdfkit.util.IncomingIntents.pending.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(settings.ocrHindi) { com.phani.pdfkit.pdf.Ocr.useDevanagari = settings.ocrHindi }
     androidx.compose.runtime.LaunchedEffect(incoming) {
         val i = incoming ?: return@LaunchedEffect
         com.phani.pdfkit.util.IncomingIntents.pending.value = null

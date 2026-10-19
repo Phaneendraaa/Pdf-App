@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.mlkit.genai.summarization)
     implementation(libs.mlkit.text)
+    implementation(libs.mlkit.text.devanagari)
     implementation(libs.kotlinx.coroutines.play.services)
     debugImplementation(libs.compose.ui.tooling)
 }

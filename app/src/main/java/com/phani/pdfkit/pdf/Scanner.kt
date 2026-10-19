@@ -72,12 +72,15 @@ object ScanDraft {
     var filter by mutableStateOf("Auto")
     /** When set, the scanned pages are added to the end of this PDF instead of making a new one. */
     var appendTo: File? by mutableStateOf(null)
+    /** Put two scans on each A4 page (ID card front and back) instead of one page per scan. */
+    var idLayout by mutableStateOf(false)
     private var counter = 0L
     fun nextId() = ++counter
     fun add(uris: List<Uri>) { pages.addAll(uris.map { ScanPage(it, filter) }) }
     fun clear(context: Context) {
         pages.clear()
         appendTo = null
+        idLayout = false
         runCatching { File(context.cacheDir, "scan").deleteRecursively() }
     }
 }
@@ -103,8 +106,9 @@ fun rememberScanner(onPages: (List<Uri>) -> Unit): () -> Unit {
 /** Builds the PDF from the reviewed pages. */
 suspend fun saveScan(context: Context, pages: List<ScanPage>, quality: Quality, report: (Float) -> Unit): JobResult? {
     val lib = Graph.library
-    val out = lib.newFile(lib.stampedName("Scan"))
-    val n = ImagesToPdf.create(
+    val out = lib.newFile(lib.stampedName(if (ScanDraft.idLayout) "ID_card" else "Scan"))
+    val n = if (ScanDraft.idLayout) ImagesToPdf.idCard(context, pages.map { ImagesToPdf.Card(it.uri, it.turn, it.filter) }, out, true, quality).also { report(1f) }
+    else ImagesToPdf.create(
         context, pages.map { it.uri }, out, PageOptions(size = "Fit to image"), quality, report,
         rotations = pages.associate { it.uri.toString() to it.turn },
         filters = pages.associate { it.uri.toString() to it.filter },
@@ -119,7 +123,11 @@ data class OcrLine(val text: String, val left: Int, val top: Int, val right: Int
 
 /** On-device text recognition (Latin script). */
 object Ocr {
-    private val client by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val latin by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val devanagari by lazy { TextRecognition.getClient(com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions.Builder().build()) }
+    /** Hindi and other Devanagari text (it reads English too). Set from Settings. */
+    @Volatile var useDevanagari = false
+    private val client get() = if (useDevanagari) devanagari else latin
 
     suspend fun read(bitmap: Bitmap): String = client.process(InputImage.fromBitmap(bitmap, 0)).await().text
 

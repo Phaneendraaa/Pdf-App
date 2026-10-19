@@ -82,6 +82,8 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             Divider()
             SRow(PkIcons.Pencil, "Autofill details", sub = "Name, email and phone for forms") { sheet = "autofill" }
             Divider()
+            SRow(PkIcons.TextT, "Text recognition", value = if (settings.ocrHindi) "Hindi + English" else "English") { sheet = "ocrlang" }
+            Divider()
             SRow(PkIcons.Ocr, "Searchable scans", sub = "Make scans searchable after scanning", trailing = { Switch(settings.searchableScans) }) {
                 scope.launch { Graph.prefs.setSearchableScans(!settings.searchableScans) }
             }
@@ -120,6 +122,10 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             }
         }
         "autofill" -> com.phani.pdfkit.ui.forms.AutofillSheet({ sheet = null })
+        "ocrlang" -> PkSheet({ sheet = null }, "Text recognition") {
+            ChoiceOption("English", "English and other Latin-script languages", !settings.ocrHindi) { scope.launch { Graph.prefs.setOcrHindi(false) }; sheet = null }
+            ChoiceOption("Hindi + English", "Devanagari (Hindi, Marathi, Nepali) and English. Downloads once.", settings.ocrHindi) { scope.launch { Graph.prefs.setOcrHindi(true) }; sheet = null }
+        }
         "savemode" -> PkSheet({ sheet = null }, "When I save edits") {
             listOf(
                 Triple("update", "Update the PDF", "Fastest. One file, with Undo right after saving"),

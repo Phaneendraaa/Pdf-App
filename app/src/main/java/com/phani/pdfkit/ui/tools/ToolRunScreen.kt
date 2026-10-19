@@ -110,6 +110,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
     var confirm by remember { mutableStateOf("") }
     var imgQuality by remember { mutableStateOf("Normal") }
     var jpgWhich by remember { mutableStateOf("All pages") }
+    var jpgMode by remember { mutableStateOf("Each page") }
     var jpgRange by remember { mutableStateOf("") }
     var splitMode by remember { mutableStateOf("Extract pages") }
     var range by remember { mutableStateOf("") }
@@ -241,6 +242,8 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                             else Hint("Anyone opening the file will need this password. Keep it safe; it can't be recovered.")
                         }
                         "pdf2jpg" -> {
+                            Label("Output")
+                            Segmented(listOf("Each page", "One long image"), jpgMode) { jpgMode = it }
                             Label("Image quality")
                             Segmented(listOf("Normal", "High"), imgQuality) { imgQuality = it }
                             Label("Pages")
@@ -249,7 +252,7 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                                 Spacer(Modifier.height(10.dp))
                                 TextField(jpgRange, "Pages, e.g. 1-3, 5", KeyboardType.Text) { jpgRange = it }
                             }
-                            Hint(if (jpgWhich == "All pages") "Each page becomes one JPG${if (pages > 0) " ($pages images)" else ""}." else "Only the pages you list become JPGs${if (pages > 0) " (this file has $pages pages)" else ""}.")
+                            if (jpgMode == "One long image") Hint("The pages are joined top to bottom in one tall JPG, easy to share in chats.") else Hint(if (jpgWhich == "All pages") "Each page becomes one JPG${if (pages > 0) " ($pages images)" else ""}." else "Only the pages you list become JPGs${if (pages > 0) " (this file has $pages pages)" else ""}.")
                         }
                         "split" -> {
                             Label("How to split")
@@ -352,6 +355,15 @@ fun ToolRunScreen(key: String, presetPath: String?, onBack: () -> Unit, onStart:
                         val only = if (jpgWhich == "Choose pages") {
                             try { PdfTools.parseRange(jpgRange, pages) } catch (e: Exception) { Toaster.show(e.message ?: "Check the page numbers"); return@PrimaryButton }
                         } else null
+                        if (jpgMode == "One long image") {
+                            ActiveJob.set("PDF to long image", "Joining pages...", listOf("Opening PDF", "Rendering pages", "Saving image")) { r ->
+                                val out = lib.newFile(base() + "_long", "jpg")
+                                val n = try { PdfTools.toLongImage(src.first(), out, r, only) } catch (e: Exception) { out.delete(); throw e }
+                                lib.refreshBlocking()
+                                if (n == 0) { out.delete(); null } else JobResult(out, n, "Long image saved!", detail = "$n pages in one JPG · ${Fmt.size(out.length())}", again = again, againLabel = "Convert another PDF")
+                            }
+                            onStart(); return@PrimaryButton
+                        }
                         ActiveJob.set("PDF to JPG", "Converting pages...", listOf("Opening PDF", "Rendering pages", "Saving images")) { r ->
                         val b = base()
                         val outs = PdfTools.toImages(src.first(), { i -> lib.newFile("${b}_p$i", "jpg") }, if (imgQuality == "High") 2.8f else 1.8f, r, only)

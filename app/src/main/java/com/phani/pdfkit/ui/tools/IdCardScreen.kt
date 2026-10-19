@@ -93,7 +93,7 @@ fun IdCardScreen(onBack: () -> Unit, onStart: () -> Unit) {
                 ActiveJob.set("ID card to PDF", "Placing your card...", listOf("Cleaning up", "Placing on A4", "Fitting the size")) { r ->
                     val lib = Graph.library
                     val out = lib.newFile(lib.stampedName("ID_card"))
-                    val n = ImagesToPdf.idCard(ctx, f, b, out, actual, filter, Quality(2000, 0.85f))
+                    val n = ImagesToPdf.idCard(ctx, listOfNotNull(f, b).map { ImagesToPdf.Card(it, 0, filter) }, out, actual, Quality(2000, 0.85f))
                     if (n == 0) { out.delete(); return@set null }
                     r(0.6f)
                     var note: String? = null

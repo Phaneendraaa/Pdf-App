@@ -35,6 +35,7 @@ pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exif" }
 mlkit-docscanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkitScanner" }
 mlkit-text = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitText" }
+mlkit-text-devanagari = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition-devanagari", version = "16.0.1" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 mlkit-genai-summarization = { group = "com.google.mlkit", name = "genai-summarization", version.ref = "genaiSummarization" }

@@ -168,6 +168,12 @@ fun ScanReviewScreen(onDiscard: () -> Unit, onSave: () -> Unit) {
                     }
                 }
             }
+            if (ScanDraft.appendTo == null) Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Layout", fontSize = 14.sp, color = c.ink2, modifier = Modifier.weight(1f))
+                ScopeToggle("Full pages", !ScanDraft.idLayout) { ScanDraft.idLayout = false }
+                Spacer(Modifier.width(6.dp))
+                ScopeToggle("ID card · 2 per page", ScanDraft.idLayout) { ScanDraft.idLayout = true }
+            }
             Spacer(Modifier.height(16.dp))
             PrimaryButton(
                 if (ScanDraft.appendTo != null) "Add ${pages.size} page${if (pages.size == 1) "" else "s"} to PDF"

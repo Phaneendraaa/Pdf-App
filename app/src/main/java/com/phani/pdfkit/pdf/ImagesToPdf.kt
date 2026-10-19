@@ -71,37 +71,48 @@ object ImagesToPdf {
         return pages
     }
 
+    /** One picture for [idCard]: where it is, extra rotation in degrees, and its filter. */
+    data class Card(val uri: Uri, val turn: Int = 0, val filter: String = "Auto")
+
     /**
-     * Front and back of an ID card on one A4 page, one above the other, the way forms ask for
-     * Aadhaar or PAN. [actualSize] prints the card at its real size (85.6 mm wide); otherwise larger.
+     * ID cards two to a page (front above back), the way forms ask for Aadhaar or PAN.
+     * [actualSize] prints each card at its real size (85.6 mm wide); otherwise larger. Returns pages written.
      */
-    suspend fun idCard(context: Context, front: Uri, back: Uri?, out: File, actualSize: Boolean, filter: String, quality: Quality): Int {
+    suspend fun idCard(context: Context, cards: List<Card>, out: File, actualSize: Boolean, quality: Quality): Int {
         PDDocument().use { doc ->
-            val page = PDPage(PDRectangle(A4_W, A4_H))
-            doc.addPage(page)
             val cardW = if (actualSize) 85.6f / 25.4f * 72f else A4_W * 0.72f
             val gap = 28f
-            val imgs = listOfNotNull(front, back).mapNotNull { uri ->
-                coroutineContext.ensureActive()
-                val raw = Bitmaps.decode(context, uri, quality.maxSide.coerceAtMost(2000)) ?: return@mapNotNull null
-                val f = Filters.apply(raw, filter).also { if (it !== raw) raw.recycle() }
-                val x = JPEGFactory.createFromImage(doc, f, quality.jpeg)
-                val ratio = f.width.toFloat() / f.height
-                f.recycle()
-                Triple(x, cardW, cardW / ratio)
-            }
-            if (imgs.isEmpty()) return 0
-            val total = imgs.sumOf { it.third.toDouble() }.toFloat() + gap * (imgs.size - 1)
-            var y = (A4_H + total) / 2f
-            PDPageContentStream(doc, page).use { cs ->
-                imgs.forEach { (img, w, h) ->
-                    y -= h
-                    cs.drawImage(img, (A4_W - w) / 2f, y, w, h)
-                    y -= gap
+            cards.chunked(2).forEach { pair ->
+                val imgs = pair.mapNotNull { card ->
+                    coroutineContext.ensureActive()
+                    val raw = Bitmaps.decode(context, card.uri, quality.maxSide.coerceAtMost(2000)) ?: return@mapNotNull null
+                    val f = Filters.apply(raw, card.filter).also { if (it !== raw) raw.recycle() }
+                    val t = ((card.turn % 360) + 360) % 360
+                    val b = if (t == 0) f else android.graphics.Bitmap.createBitmap(f, 0, 0, f.width, f.height, android.graphics.Matrix().apply { postRotate(t.toFloat()) }, true).also { if (it !== f) f.recycle() }
+                    val x = JPEGFactory.createFromImage(doc, b, quality.jpeg)
+                    val ratio = b.width.toFloat() / b.height
+                    b.recycle()
+                    // Very tall pictures (a portrait card) are limited by height so two still fit.
+                    var w = cardW; var h = w / ratio
+                    if (h > A4_H * 0.42f) { h = A4_H * 0.42f; w = h * ratio }
+                    Triple(x, w, h)
+                }
+                if (imgs.isEmpty()) return@forEach
+                val page = PDPage(PDRectangle(A4_W, A4_H))
+                doc.addPage(page)
+                val total = imgs.sumOf { it.third.toDouble() }.toFloat() + gap * (imgs.size - 1)
+                var y = (A4_H + total) / 2f
+                PDPageContentStream(doc, page).use { cs ->
+                    imgs.forEach { (img, w, h) ->
+                        y -= h
+                        cs.drawImage(img, (A4_W - w) / 2f, y, w, h)
+                        y -= gap
+                    }
                 }
             }
+            if (doc.numberOfPages == 0) return 0
             doc.save(out)
-            return 1
+            return doc.numberOfPages
         }
     }
 }

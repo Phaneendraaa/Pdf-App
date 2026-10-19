@@ -82,12 +82,15 @@ object SearchablePdf {
         val box = page.cropBox
         val sx = box.width / bmp.width
         val sy = box.height / bmp.height
-        val font = PDType1Font.HELVETICA
+        val latinFont = PDType1Font.HELVETICA
+        val uni by lazy { unicodeFont(doc) }
         var wrote = false
         PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
             cs.setRenderingMode(RenderingMode.NEITHER)
             for (l in lines) {
-                val txt = l.text.filter { it.code in 32..126 || it.code in 160..255 }.trim()
+                val latin = l.text.all { it.code in 32..126 || it.code in 160..255 }
+                val font = if (latin) latinFont else uni ?: latinFont
+                val txt = (if (font === latinFont) l.text.filter { it.code in 32..126 || it.code in 160..255 } else l.text).trim()
                 if (txt.isEmpty()) continue
                 val hPt = (l.bottom - l.top) * sy
                 val wPt = (l.right - l.left) * sx
@@ -108,5 +111,14 @@ object SearchablePdf {
             }
         }
         return wrote
+    }
+
+    /** A phone font that has Hindi letters, so Devanagari OCR text can be searched too. */
+    private fun unicodeFont(doc: PDDocument): com.tom_roush.pdfbox.pdmodel.font.PDFont? {
+        val dir = File("/system/fonts")
+        val files = dir.listFiles { f -> f.name.startsWith("NotoSansDevanagari") && f.name.endsWith(".ttf") && !f.name.contains("VF") }.orEmpty()
+            .sortedBy { if ("Regular" in it.name) 0 else 1 }
+        for (f in files) runCatching { return com.tom_roush.pdfbox.pdmodel.font.PDType0Font.load(doc, f) }
+        return null
     }
 }

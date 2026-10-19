@@ -183,6 +183,47 @@ object PdfTools {
         return out
     }
 
+    /**
+     * All pages (or [only]) stacked into one tall JPG, the way people share a document on WhatsApp.
+     * Width is up to 1200 px and shrinks for long documents so the picture stays a sensible size.
+     */
+    suspend fun toLongImage(src: File, out: File, report: (Float) -> Unit, only: List<Int>? = null): Int {
+        val fd = try { ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY) } catch (e: Exception) { throw ToolError("Can't open this PDF.") }
+        val renderer = try { PdfRenderer(fd) } catch (e: SecurityException) { fd.close(); throw ToolError("This PDF is password protected. Unlock it first.") }
+        try {
+            renderer.use { r ->
+                val list = only?.filter { it in 0 until r.pageCount } ?: (0 until r.pageCount).toList()
+                if (list.isEmpty()) return 0
+                val ratios = list.map { i -> r.openPage(i).use { it.height.toFloat() / it.width } }
+                val maxH = 20000f; val gap = 16
+                var width = 1200
+                while (width > 400 && ratios.sum() * width + gap * list.size > maxH) width -= 100
+                val heights = ratios.map { (it * width).toInt() }
+                val total = heights.sum() + gap * (list.size - 1)
+                val big = Bitmap.createBitmap(width, total, Bitmap.Config.ARGB_8888)
+                big.eraseColor(Color.rgb(230, 232, 236))
+                val cv = android.graphics.Canvas(big)
+                var y = 0
+                list.forEachIndexed { n, i ->
+                    coroutineContext.ensureActive()
+                    r.openPage(i).use { p ->
+                        val bmp = Bitmap.createBitmap(width, heights[n], Bitmap.Config.ARGB_8888)
+                        bmp.eraseColor(Color.WHITE)
+                        p.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        cv.drawBitmap(bmp, 0f, y.toFloat(), null)
+                        bmp.recycle()
+                    }
+                    y += heights[n] + gap
+                    report((n + 1f) / list.size * 0.9f)
+                }
+                out.outputStream().use { big.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+                big.recycle()
+                report(1f)
+                return list.size
+            }
+        } finally { runCatching { fd.close() } }
+    }
+
     // ---------- Split ----------
     /** Parses "1-3, 5, 8-10" into zero-based page indexes. */
     fun parseRange(text: String, pageCount: Int): List<Int> {
