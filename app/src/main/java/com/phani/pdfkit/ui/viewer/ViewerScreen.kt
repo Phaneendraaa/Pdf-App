@@ -130,6 +130,7 @@ fun ViewerScreen(
     var summary by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
     var copyOpen by remember { mutableStateOf(false) }
+    var marksOpen by remember { mutableStateOf(false) }
     var pageNow by remember { mutableIntStateOf(0) }
     val settings by Graph.prefs.settings.collectAsState(initial = com.phani.pdfkit.data.Settings())
     val night = settings.nightReading
@@ -162,6 +163,7 @@ fun ViewerScreen(
 
     if (summary && doc != null) SummarySheet(doc, ai) { summary = false }
     if (copyOpen && doc != null) CopyTextSheet(doc, pageNow) { copyOpen = false }
+    if (marksOpen && doc != null) MarksSheet(doc, { marksOpen = false }) { out -> marksOpen = false; onReplace(out.absolutePath) }
 
     if (more && doc != null) {
         val blue = tint(0xFF2463EB, 0xFFEEF3FF, c.isDark)
@@ -179,6 +181,7 @@ fun ViewerScreen(
             if (doc.isPdf) SheetOption(PkIcons.Moon, blue.fg, blue.bg, if (night) "Turn off night reading" else "Night reading", "Dark pages, easier on the eyes") {
                 more = false; scope.launch { Graph.prefs.setNightReading(!night) }
             }
+            if (doc.isPdf) SheetOption(PkIcons.List, blue.fg, blue.bg, "Comments & marks", "See or remove notes, highlights and drawings") { more = false; marksOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Copy, blue.fg, blue.bg, "Select and copy text", "Text on the page you are reading") { more = false; copyOpen = true }
             if (doc.isPdf) SheetOption(PkIcons.Printer, blue.fg, blue.bg, "Print", "Pick pages in the print screen") { more = false; com.phani.pdfkit.util.PrintPdf.print(ctx, doc.file, doc.name) }
             SheetOption(PkIcons.ArrowRight, blue.fg, blue.bg, "Open with another app") { more = false; FileShare.openExternal(ctx, doc) }
@@ -598,5 +601,39 @@ fun ZoomBox(modifier: Modifier, content: @Composable () -> Unit) {
             },
     ) {
         Box(Modifier.fillMaxSize().graphicsLayer { scaleX = shown; scaleY = shown; translationX = offX; translationY = offY }) { content() }
+    }
+}
+
+/** Every note, highlight, drawing and stamp in the PDF, with a delete button each. */
+@Composable
+private fun MarksSheet(doc: DocFile, onDismiss: () -> Unit, onChanged: (File) -> Unit) {
+    val c = Pk.colors
+    val scope = rememberCoroutineScope()
+    var items by remember { mutableStateOf<List<com.phani.pdfkit.pdf.Annotations.Info>?>(null) }
+    LaunchedEffect(doc.path) {
+        items = withContext(Dispatchers.IO) { runCatching { com.phani.pdfkit.pdf.Annotations.list(doc.file) }.getOrDefault(emptyList()) }
+    }
+    PkSheet(onDismiss, "Comments & marks") {
+        val list = items
+        when {
+            list == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = c.blue, modifier = Modifier.size(24.dp)) }
+            list.isEmpty() -> Text("No notes, highlights or drawings in this PDF.", color = c.ink2, fontSize = 14.5.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp))
+            else -> list.forEach { m ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("${m.kind} · page ${m.page + 1}", color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        if (m.text.isNotBlank()) Text(m.text, color = c.ink2, fontSize = 13.5.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconBtn(PkIcons.Trash, tint = c.red, size = 19.dp, label = "Remove") {
+                        scope.launch {
+                            val inLib = doc.path.startsWith(Graph.library.dir.absolutePath)
+                            val res = Graph.library.saveEdit(doc.file, inLib, "_edited") { out -> com.phani.pdfkit.pdf.Annotations.remove(doc.file, setOf(m.page to m.index), out) }
+                            if (res == null) Toaster.show("Couldn't remove it")
+                            else { com.phani.pdfkit.ui.edit.announceSaved(doc.file, res) { onChanged(it) }; onChanged(res.file) }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

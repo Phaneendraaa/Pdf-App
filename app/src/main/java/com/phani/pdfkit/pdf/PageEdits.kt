@@ -8,7 +8,8 @@ import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
 import java.io.File
 
 /** Edits on one page. All coordinates are fractions of the page (0..1, origin top-left). */
-data class InkStroke(val points: List<Pair<Float, Float>>, val highlight: Boolean, val color: Int)
+/** A pen or highlighter stroke. [flat] strokes (ticks, crosses) are drawn into the page; others are saved as editable ink marks. */
+data class InkStroke(val points: List<Pair<Float, Float>>, val highlight: Boolean, val color: Int, val flat: Boolean = false)
 data class TextMark(val text: String, val x: Float, val y: Float, val size: Float, val color: Int)
 data class ImageMark(val bitmap: Bitmap, val x: Float, val y: Float, val w: Float)
 
@@ -24,6 +25,7 @@ object PageEdits {
         val texts: List<TextMark> = emptyList(),
         val images: List<ImageMark> = emptyList(),
         val textEdits: List<TextEditOp> = emptyList(),
+        val annots: List<Annot> = emptyList(),
     )
 
     /** Writes a copy of [src] with the edits flattened onto page [pageIndex]. Returns the page count. */
@@ -41,7 +43,10 @@ object PageEdits {
         }
 
     private fun applyTo(doc: com.tom_roush.pdfbox.pdmodel.PDDocument, ch: PageChange) {
-        val pageIndex = ch.page; val strokes = ch.strokes; val texts = ch.texts; val images = ch.images
+        val pageIndex = ch.page; val texts = ch.texts; val images = ch.images
+        // Pen and highlighter become real, removable marks; ticks and crosses are part of the page.
+        val strokes = ch.strokes.filter { it.flat }
+        val inkMarks = ch.strokes.filter { !it.flat && it.points.size > 1 }.map { Annot.Ink(it.points, it.color, it.highlight) }
         run {
             // Existing-text edits go first so new ink and marks sit on top of them.
             TextEdit.applyTo(doc, pageIndex, ch.textEdits)
@@ -81,6 +86,7 @@ object PageEdits {
                     cs.endText()
                 }
             }
+            Annotations.add(doc, pageIndex, inkMarks + ch.annots)
         }
     }
 }

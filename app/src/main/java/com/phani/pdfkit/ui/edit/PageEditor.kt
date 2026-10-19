@@ -7,6 +7,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +70,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.phani.pdfkit.Graph
+import com.phani.pdfkit.pdf.Annot
+import com.phani.pdfkit.pdf.Frac
 import com.phani.pdfkit.pdf.ImageMark
 import com.phani.pdfkit.pdf.InkStroke
 import com.phani.pdfkit.pdf.PageEdits
@@ -101,10 +105,11 @@ private class PageWork {
     var sigY by mutableStateOf(0.78f)
     var sigW by mutableStateOf(0.3f)
     val lineEdits = mutableStateMapOf<Int, LineEdit>()
-    val history = mutableStateListOf<String>() // "s", "t", "g", "e<id>" for undo order
+    val annots = mutableStateListOf<Annot>()
+    val history = mutableStateListOf<String>() // "s", "t", "g", "a", "e<id>" for undo order
     val redo = mutableStateListOf<Pair<String, Any?>>()
     var layout by mutableStateOf<com.phani.pdfkit.pdf.TextEdit.Page?>(null)
-    val dirty: Boolean get() = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty()
+    val dirty: Boolean get() = strokes.isNotEmpty() || texts.isNotEmpty() || sig != null || lineEdits.isNotEmpty() || annots.isNotEmpty()
     fun record(h: String) { history += h; redo.clear() }
 }
 
@@ -132,8 +137,14 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
     var editing by remember { mutableStateOf<com.phani.pdfkit.pdf.TextBlock?>(null) }
     var toldEdit by remember { mutableStateOf(false) }
     val inLibrary = file.absolutePath.startsWith(Graph.library.dir.absolutePath)
+    var fillKind by remember { mutableStateOf("✓") }
+    var shapeCircle by remember { mutableStateOf(false) }
+    var stampLabel by remember { mutableStateOf("Approved") }
+    var noteAt by remember { mutableStateOf<Offset?>(null) }
+    var liveRect by remember { mutableStateOf<Frac?>(null) }
 
     val strokes = w.strokes
+    val annots = w.annots
     val texts = w.texts
     val lineEdits = w.lineEdits
     val history = w.history
@@ -159,7 +170,15 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             val saved = withContext(Dispatchers.IO) { SignatureStore.load(ctx) }
             if (saved != null) { sig = saved; w.record("g") } else padOpen = true
         }
-        if (tool == "text" && texts.isEmpty()) Toaster.show("Tap the page where you want text")
+        when (tool) {
+            "text" -> if (texts.isEmpty()) Toaster.show("Tap the page where you want text")
+            "fill" -> Toaster.show("Pick ✓, ✗ or Date, then tap the page")
+            "underline", "strike" -> Toaster.show("Tap a line of text")
+            "highlight" -> Toaster.show("Tap a line to highlight it, or drag to mark freely")
+            "shape" -> Toaster.show("Drag to draw the shape")
+            "note" -> Toaster.show("Tap where the note should go")
+            "stamp" -> Toaster.show("Pick a stamp, then tap the page")
+        }
     }
     val editedPages = works.filter { it.value.dirty }.keys.sorted()
     val dirty = editedPages.isNotEmpty()
@@ -171,8 +190,9 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             val blocksById = pw.layout?.blocks?.associateBy { it.id }.orEmpty()
             PageEdits.PageChange(
                 page = p,
-                strokes = pw.strokes.toList(),
-                texts = pw.texts.map { TextMark(it.text, it.x, it.y, it.size, it.color) },
+                texts = pw.texts.filter { it.text != "✓" && it.text != "✗" }.map { TextMark(it.text, it.x, it.y, it.size, it.color) },
+                strokes = pw.strokes.toList() + pw.texts.filter { it.text == "✓" || it.text == "✗" }.flatMap { tickStrokes(it, pdf.ratios.getOrElse(p) { 0.707f }) },
+                annots = pw.annots.toList(),
                 images = pw.sig?.let { listOf(ImageMark(it, pw.sigX, pw.sigY, pw.sigW)) } ?: emptyList(),
                 textEdits = pw.lineEdits.mapNotNull { (id, e) ->
                     blocksById[id]?.let { com.phani.pdfkit.pdf.TextEditOp(it, e.text, e.sizePt, e.bold, e.color, e.background) }
@@ -246,6 +266,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                         h == "s" -> if (strokes.isNotEmpty()) redo += h to strokes.removeAt(strokes.lastIndex)
                         h == "t" -> if (texts.isNotEmpty()) redo += h to texts.removeAt(texts.lastIndex)
                         h == "g" -> { redo += h to sig; sig = null }
+                        h == "a" -> if (annots.isNotEmpty()) redo += h to annots.removeAt(annots.lastIndex)
                         h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id -> redo += h to lineEdits.remove(id) }
                     }
                 },
@@ -258,6 +279,7 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                         h == "s" -> (v as? InkStroke)?.let { strokes += it }
                         h == "t" -> (v as? Mark)?.let { texts += it }
                         h == "g" -> (v as? Bitmap)?.let { sig = it }
+                        h == "a" -> (v as? Annot)?.let { annots += it }
                         h.startsWith("e") -> h.drop(1).toIntOrNull()?.let { id -> (v as? LineEdit)?.let { lineEdits[id] = it } }
                     }
                     history += h
@@ -285,6 +307,53 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                             ) { ch, _ -> ch.consume(); live += (ch.position.x / wPx).coerceIn(0f, 1f) to (ch.position.y / hPx).coerceIn(0f, 1f) }
                         } else if (tool == "text") {
                             detectTapGestures { o -> textAt = Offset(o.x / wPx, o.y / hPx) }
+                        } else if (tool == "shape") {
+                            var start = Offset.Zero
+                            detectDragGestures(
+                                onDragStart = { o -> start = o; liveRect = null },
+                                onDragEnd = {
+                                    liveRect?.takeIf { it.w > 0.02f && it.h > 0.01f }?.let { annots += Annot.Shape(it, shapeCircle, ink); w.record("a") }
+                                    liveRect = null
+                                },
+                                onDragCancel = { liveRect = null },
+                            ) { ch, _ ->
+                                ch.consume()
+                                val p = ch.position
+                                val x0 = minOf(start.x, p.x).coerceIn(0f, wPx) / wPx; val x1 = maxOf(start.x, p.x).coerceIn(0f, wPx) / wPx
+                                val y0 = minOf(start.y, p.y).coerceIn(0f, hPx) / hPx; val y1 = maxOf(start.y, p.y).coerceIn(0f, hPx) / hPx
+                                liveRect = Frac(x0, y0, x1 - x0, y1 - y0)
+                            }
+                        } else if (tool in setOf("fill", "note", "stamp", "underline", "strike")) {
+                            detectTapGestures { o ->
+                                val x = o.x / wPx; val y = o.y / hPx
+                                when (tool) {
+                                    "fill" -> {
+                                        val label = if (fillKind == "Date") java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date()) else fillKind
+                                        val size = if (fillKind == "Date") 0.026f else 0.04f
+                                        texts += Mark(label, (x - size * 0.4f).coerceIn(0f, 0.95f), (y - size * ratio * 0.6f).coerceIn(0f, 0.97f), size, if (fillKind == "Date") INKS[0] else INKS[1])
+                                        w.record("t")
+                                    }
+                                    "note" -> noteAt = Offset(x, y)
+                                    "stamp" -> {
+                                        val sw = 0.3f
+                                        annots += Annot.Stamp(stampLabel, (x - sw / 2f).coerceIn(0f, 1f - sw), (y - sw * 0.15f * ratio).coerceIn(0f, 0.95f), sw, stampColor(stampLabel))
+                                        w.record("a")
+                                    }
+                                    else -> {
+                                        val b = layout?.blocks?.firstOrNull { x in it.x..(it.x + it.w) && y in (it.top - 0.004f)..(it.top + it.h + 0.004f) }
+                                        if (b == null) Toaster.show("Tap on a line of text")
+                                        else { annots += Annot.LineMark(Frac(b.x, b.top, b.w, b.h), if (tool == "strike") "StrikeOut" else "Underline", if (tool == "strike") 0xFFE11D48.toInt() else ink); w.record("a") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .pointerInput(tool, current, layout) {
+                        // Highlighter: a tap marks the whole line; dragging still draws freely.
+                        if (tool == "highlight") detectTapGestures { o ->
+                            val x = o.x / wPx; val y = o.y / hPx
+                            val b = layout?.blocks?.firstOrNull { x in it.x..(it.x + it.w) && y in (it.top - 0.004f)..(it.top + it.h + 0.004f) }
+                            if (b != null) { annots += Annot.LineMark(Frac(b.x, b.top, b.w, b.h), "Highlight", HIGHLIGHT); w.record("a") }
                         }
                     },
             ) {
@@ -302,10 +371,53 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
                         )
                     }
                     strokes.forEach { drawInk(it.points, it.highlight, it.color) }
+                    annots.forEach { a ->
+                        when (a) {
+                            is Annot.LineMark -> {
+                                val l = a.rect.x * size.width; val r = (a.rect.x + a.rect.w) * size.width
+                                val t = a.rect.y * size.height; val btm = (a.rect.y + a.rect.h) * size.height
+                                when (a.kind) {
+                                    "Highlight" -> drawRect(Color(a.color).copy(alpha = 0.4f), Offset(l, t), androidx.compose.ui.geometry.Size(r - l, btm - t))
+                                    "StrikeOut" -> drawLine(Color(a.color), Offset(l, (t + btm) / 2f), Offset(r, (t + btm) / 2f), 1.5.dp.toPx())
+                                    else -> drawLine(Color(a.color), Offset(l, btm), Offset(r, btm), 1.5.dp.toPx())
+                                }
+                            }
+                            is Annot.Shape -> {
+                                val o = Offset(a.rect.x * size.width, a.rect.y * size.height)
+                                val sz = androidx.compose.ui.geometry.Size(a.rect.w * size.width, a.rect.h * size.height)
+                                if (a.circle) drawOval(Color(a.color), o, sz, style = Stroke(2.dp.toPx())) else drawRect(Color(a.color), o, sz, style = Stroke(2.dp.toPx()))
+                            }
+                            else -> {}
+                        }
+                    }
+                    liveRect?.let { f ->
+                        val o = Offset(f.x * size.width, f.y * size.height)
+                        val sz = androidx.compose.ui.geometry.Size(f.w * size.width, f.h * size.height)
+                        if (shapeCircle) drawOval(Color(ink), o, sz, style = Stroke(2.dp.toPx())) else drawRect(Color(ink), o, sz, style = Stroke(2.dp.toPx()))
+                    }
                     if (tool == "draw" || tool == "highlight") drawInk(live.toList(), tool == "highlight", if (tool == "highlight") HIGHLIGHT else ink)
                 }
                 layout?.let { l ->
                     TextEditLayer(l.blocks, lineEdits, l.widthPt, wPx, hPx, active = tool == "edit") { editing = it }
+                }
+                annots.forEach { a ->
+                    if (a is Annot.Note) Box(
+                        Modifier.offset { IntOffset((a.x * wPx).roundToInt(), (a.y * hPx).roundToInt() - 22.dp.roundToPx()) }
+                            .size(22.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFFF5B301))
+                            .clickable { Toaster.show(a.text) },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(PkIcons.List, "Note", tint = Color.White, modifier = Modifier.size(14.dp)) }
+                    if (a is Annot.Stamp) {
+                        val sw = a.w * wPx
+                        Box(
+                            Modifier.offset { IntOffset((a.x * wPx).roundToInt(), (a.y * hPx).roundToInt()) }
+                                .size(with(density) { sw.toDp() }, with(density) { (sw * 0.3f).toDp() })
+                                .border(2.dp, Color(a.color), RoundedCornerShape(2.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(a.label.uppercase(), color = Color(a.color), fontWeight = FontWeight.Bold, maxLines = 1, fontSize = with(density) { (sw * 0.3f * 0.42f).toSp() })
+                        }
+                    }
                 }
                 texts.forEach { m ->
                     val fontPx = m.size * wPx
@@ -338,15 +450,24 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
             }
         }
         Column(Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceAround, modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 ToolChip(PkIcons.Edit, "Edit text", tool == "edit") { tool = "edit" }
                 ToolChip(PkIcons.TextT, "Add text", tool == "text") { tool = "text" }
-                ToolChip(PkIcons.Highlight, "Highlight", tool == "highlight") { tool = "highlight" }
-                ToolChip(PkIcons.Pencil, "Draw", tool == "draw") { tool = "draw" }
+                ToolChip(PkIcons.Check, "Tick & date", tool == "fill") { tool = "fill" }
                 ToolChip(PkIcons.Signature, "Sign", tool == "sign") { tool = "sign" }
+                ToolChip(PkIcons.Highlight, "Highlight", tool == "highlight") { tool = "highlight" }
+                ToolChip(PkIcons.Pen, "Underline", tool == "underline") { tool = "underline" }
+                ToolChip(PkIcons.Close, "Strike", tool == "strike") { tool = "strike" }
+                ToolChip(PkIcons.Pencil, "Draw", tool == "draw") { tool = "draw" }
+                ToolChip(PkIcons.Grid, "Shapes", tool == "shape") { tool = "shape" }
+                ToolChip(PkIcons.List, "Note", tool == "note") { tool = "note" }
+                ToolChip(PkIcons.Star, "Stamp", tool == "stamp") { tool = "stamp" }
             }
             when (tool) {
-                "draw", "text" -> Row(Modifier.padding(top = 10.dp).align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                "fill" -> OptionPills(listOf("✓", "✗", "Date"), fillKind) { fillKind = it }
+                "stamp" -> OptionPills(STAMPS, stampLabel) { stampLabel = it }
+                "shape" -> OptionPills(listOf("Rectangle", "Circle"), if (shapeCircle) "Circle" else "Rectangle") { shapeCircle = it == "Circle" }
+                "draw", "text", "underline" -> Row(Modifier.padding(top = 10.dp).align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     INKS.forEach { col ->
                         Box(
                             Modifier.size(30.dp).clip(CircleShape).background(Color(col))
@@ -463,6 +584,26 @@ fun PageEditor(pdf: PdfDoc, file: File, page: Int, initialTool: String, onClose:
         sig = b; sigW = 0.3f
     }
 
+    noteAt?.let { at ->
+        var value by remember(at) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { noteAt = null }, containerColor = c.card, shape = RoundedCornerShape(20.dp),
+            title = { Text("Add a note", color = c.ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+            text = {
+                OutlinedTextField(
+                    value, { value = it }, placeholder = { Text("Your comment", color = c.ink3) }, shape = RoundedCornerShape(12.dp), minLines = 2,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.blue, unfocusedBorderColor = c.line, cursorColor = c.blue),
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = value.isNotBlank(), onClick = {
+                    annots += Annot.Note(at.x.coerceAtMost(0.95f), at.y.coerceAtLeast(0.03f), value.trim()); w.record("a"); noteAt = null
+                }) { Text("Add", color = c.blue, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = { TextButton(onClick = { noteAt = null }) { Text("Cancel", color = c.ink2) } },
+        )
+    }
+
     textAt?.let { at ->
         var value by remember(at) { mutableStateOf("") }
         AlertDialog(
@@ -497,5 +638,38 @@ private fun ToolChip(icon: ImageVector, label: String, on: Boolean, onClick: () 
     ) {
         Icon(icon, label, tint = if (on) c.blue else c.ink, modifier = Modifier.size(22.dp))
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (on) c.blue else c.ink, modifier = Modifier.padding(top = 3.dp))
+    }
+}
+
+private val STAMPS = listOf("Approved", "Paid", "Received", "Draft", "Confidential", "Rejected")
+
+private fun stampColor(label: String): Int = when (label) {
+    "Approved", "Paid", "Received" -> 0xFF16A34A.toInt()
+    "Draft" -> 0xFF2463EB.toInt()
+    else -> 0xFFE11D48.toInt()
+}
+
+/** A tick or cross mark as pen strokes, so it prints crisply with any font. [ratio] is page width / height. */
+private fun tickStrokes(m: Mark, ratio: Float): List<InkStroke> {
+    val s = m.size; val h = s * ratio
+    val x = m.x; val y = m.y + h * 0.1f
+    return if (m.text == "✓") listOf(InkStroke(listOf(x to y + h * 0.55f, x + s * 0.38f to y + h * 0.95f, x + s to y), false, m.color, flat = true))
+    else listOf(
+        InkStroke(listOf(x to y, x + s to y + h), false, m.color, flat = true),
+        InkStroke(listOf(x + s to y, x to y + h), false, m.color, flat = true),
+    )
+}
+
+@Composable
+private fun OptionPills(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    val c = Pk.colors
+    Row(Modifier.padding(top = 10.dp).fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { o ->
+            val on = o == selected
+            Text(
+                o, color = if (on) Color.White else c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) c.blue else c.surf).clickable { onSelect(o) }.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
     }
 }
