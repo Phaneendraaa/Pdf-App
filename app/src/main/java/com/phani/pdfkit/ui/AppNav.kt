@@ -96,6 +96,10 @@ fun PdfKitApp(settings: Settings) {
 
     // Files shared or opened from other apps, and launcher shortcuts.
     val incoming by com.phani.pdfkit.util.IncomingIntents.pending.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.phani.pdfkit.util.Support.takeCrash(ctx) }
+        if (report != null) Toaster.show("Pdf Kit closed unexpectedly last time", "Send report") { com.phani.pdfkit.util.Support.send(ctx, "Pdf Kit crash report", report) }
+    }
     androidx.compose.runtime.LaunchedEffect(settings.ocrHindi) { com.phani.pdfkit.pdf.Ocr.useDevanagari = settings.ocrHindi }
     androidx.compose.runtime.LaunchedEffect(incoming) {
         val i = incoming ?: return@LaunchedEffect

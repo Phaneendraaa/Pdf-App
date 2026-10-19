@@ -17,8 +17,10 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
-    // Dev signing key so every CI build installs over the previous one.
-    // NOT for Play Store: create a private upload key before publishing.
+    // Dev key: every test APK installs over the previous one. The Play bundle is signed with the
+    // private upload key, which CI reads from GitHub secrets (never stored in the repo).
+    val uploadStore = System.getenv("UPLOAD_STORE_FILE")
+    val playBundle = System.getenv("PLAY_BUNDLE") == "1" && uploadStore != null
     signingConfigs {
         create("dev") {
             storeFile = file("keystore/dev.jks")
@@ -26,12 +28,19 @@ android {
             keyAlias = "pdfkit"
             keyPassword = "pdfkitdev"
         }
+        if (uploadStore != null) create("upload") {
+            storeFile = file(uploadStore)
+            storePassword = System.getenv("UPLOAD_STORE_PASSWORD")
+            keyAlias = System.getenv("UPLOAD_KEY_ALIAS")
+            keyPassword = System.getenv("UPLOAD_KEY_PASSWORD") ?: System.getenv("UPLOAD_STORE_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("dev")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName(if (playBundle) "upload" else "dev")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {

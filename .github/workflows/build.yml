@@ -33,6 +33,20 @@ jobs:
           ./gradlew --no-daemon assembleRelease 2>&1 | tee build.log
           cp app/build/outputs/apk/release/app-release.apk PdfKit.apk
 
+      - name: Build Play Store bundle (only when the upload key secrets are set)
+        shell: bash
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+        run: |
+          if [ -z "$UPLOAD_KEYSTORE_BASE64" ]; then echo "No upload key secrets yet; skipping the .aab"; exit 0; fi
+          echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          set -o pipefail
+          UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks" PLAY_BUNDLE=1 ./gradlew --no-daemon bundleRelease 2>&1 | tee -a build.log
+          cp app/build/outputs/bundle/release/app-release.aab PdfKit.aab
+          rm -f "$RUNNER_TEMP/upload.jks"
+
       - name: Report build errors
         if: failure()
         shell: bash
@@ -51,7 +65,9 @@ jobs:
             **Build ${{ github.run_number }}** (version 0.1.${{ github.run_number }}) from commit ${{ github.sha }}.
             Download **PdfKit.apk** below and install it on your phone.
             Check Settings > About Pdf Kit in the app: it should show version 0.1.${{ github.run_number }}.
-          files: PdfKit.apk
+          files: |
+            PdfKit.apk
+            PdfKit.aab
           make_latest: true
 
       - name: Remove older builds

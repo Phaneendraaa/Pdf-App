@@ -110,6 +110,10 @@ fun SettingsScreen(settings: Settings, onTour: () -> Unit) {
             Divider()
             SRow(PkIcons.Star, "Rate Pdf Kit") { Store.openListing(ctx) }
             Divider()
+            SRow(PkIcons.Pen, "Send feedback", sub = "Ideas, problems, missing tools") { com.phani.pdfkit.util.Support.feedback(ctx) }
+            Divider()
+            SRow(PkIcons.Shield, "Privacy policy", sub = "We collect nothing. Files stay on your phone.") { com.phani.pdfkit.util.Support.openPrivacy(ctx) }
+            Divider()
             SRow(PkIcons.Info, "About Pdf Kit") { sheet = "about" }
         }
         Text("Pdf Kit · v${BuildConfigInfo.versionName(ctx)}", fontSize = 12.5.sp, color = c.ink3, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 30.dp))

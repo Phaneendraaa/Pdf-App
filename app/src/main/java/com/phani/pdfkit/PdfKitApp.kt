@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 class PdfKitApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.phani.pdfkit.util.Support.install(this)
         com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(this)
         Graph.init(this)
         createSampleOnce()
